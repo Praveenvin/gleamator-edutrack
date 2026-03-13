@@ -38,26 +38,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = async (username: string, password: string) => {
 
-    const res = await axios.post(
-      "http://127.0.0.1:8000/api/login/",
-      {
-        username,
-        password
+    try {
+
+      const res = await axios.post(
+        "http://127.0.0.1:8000/api/login/",
+        {
+          username,
+          password
+        }
+      );
+
+      const data = res.data;
+
+      const newUser: User = {
+        username: data.username,
+        role: data.role.toLowerCase() as UserRole
+      };
+
+      setUser(newUser);
+
+      localStorage.setItem("user", JSON.stringify(newUser));
+
+      navigate(rolePaths[newUser.role]);
+
+    } catch (error: any) {
+
+      if (error.response) {
+        throw new Error(error.response.data.message || "Invalid username or password");
       }
-    );
 
-    const data = res.data;
-
-    const newUser: User = {
-      username: data.username,
-      role: data.role.toLowerCase() as UserRole
-    };
-
-    setUser(newUser);
-
-    localStorage.setItem("user", JSON.stringify(newUser));
-
-    navigate(rolePaths[newUser.role]);
+      throw new Error("Server not reachable");
+    }
   };
 
   const logout = () => {

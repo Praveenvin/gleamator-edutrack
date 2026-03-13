@@ -1,7 +1,21 @@
 from django.urls import path
-from .views import student_list, login_user
+from .views import (
+    login_user,
+    students_api,
+    faculty_api,
+    courses_api,
+    attendance_api,
+    assignments_api,
+    marks_api
+)
 
 urlpatterns = [
-    path('students/', student_list),
-    path('login/', login_user),   # ADD THIS LINE
+    path('login/', login_user),
+
+    path('students/', students_api),
+    path('faculty/', faculty_api),
+    path('courses/', courses_api),
+    path('attendance/', attendance_api),
+    path('assignments/', assignments_api),
+    path('marks/', marks_api),
 ]

@@ -6,7 +6,7 @@ const Login = () => {
 const [email, setEmail] = useState("");
 const [password, setPassword] = useState("");
 const { login } = useAuth();
-
+const [errorMessage, setErrorMessage] = useState("");
 const [loading, setLoading] = useState(false);
 
 const handleSubmit = async (e: React.FormEvent) => {
@@ -14,11 +14,13 @@ const handleSubmit = async (e: React.FormEvent) => {
 
   if (!email || !password || loading) return;
 
+  setErrorMessage("");
+
   try {
     setLoading(true);
     await login(email, password);
-  } catch (error) {
-    console.error(error);
+  } catch (error: any) {
+    setErrorMessage(error.message);
   } finally {
     setLoading(false);
   }
@@ -112,7 +114,11 @@ attendance, and academic performance — all in one place. </p>
               />
             </div>
           </div>
-
+          {errorMessage && (
+  <p className="text-red-500 text-sm">
+    {errorMessage}
+  </p>
+)}
           <button
   type="submit"
   disabled={loading}

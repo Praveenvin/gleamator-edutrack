@@ -26,3 +26,54 @@ class UserProfile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.role}"
+
+class Faculty(models.Model):
+    name = models.CharField(max_length=100)
+    email = models.EmailField(unique=True)
+    department = models.CharField(max_length=100)
+    designation = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.name
+
+class Course(models.Model):
+    course_name = models.CharField(max_length=100)
+    course_code = models.CharField(max_length=20, unique=True)
+    faculty = models.ForeignKey(Faculty, on_delete=models.CASCADE)
+    semester = models.IntegerField()
+    department = models.CharField(max_length=100)
+
+    def __str__(self):
+        return self.course_name
+
+
+class Attendance(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    date = models.DateField()
+    status = models.CharField(max_length=10, choices=[
+        ("Present", "Present"),
+        ("Absent", "Absent")
+    ])
+
+    def __str__(self):
+        return f"{self.student} - {self.course} - {self.date}"
+
+class Assignment(models.Model):
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    title = models.CharField(max_length=200)
+    description = models.TextField()
+    due_date = models.DateField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
+
+class InternalMarks(models.Model):
+    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+    marks = models.IntegerField()
+    exam_type = models.CharField(max_length=50)
+
+    def __str__(self):
+        return f"{self.student} - {self.course} - {self.marks}"
