@@ -7,7 +7,17 @@ from .views import (
     attendance_api,
     assignments_api,
     marks_api,
-    materials_api
+    materials_api,
+    faculty_profile,
+    notifications_api,
+    settings_api,
+    leave_requests_api,
+    change_password,
+    messages_api,
+    student_detail,
+    student_profile,
+    timetable_api,
+
 )
 
 urlpatterns = [
@@ -20,4 +30,13 @@ urlpatterns = [
     path('assignments/', assignments_api),
     path('marks/', marks_api),
     path("materials/", materials_api),
+    path("faculty/profile/", faculty_profile),
+    path("notifications/", notifications_api),
+    path("settings/", settings_api),
+    path("leave-requests/", leave_requests_api),
+    path("messages/", messages_api),
+    path("change-password/", change_password),
+    path("students/<int:id>/", student_detail),
+    path("student-profile/", student_profile),
+    path("timetable/",timetable_api),
 ]

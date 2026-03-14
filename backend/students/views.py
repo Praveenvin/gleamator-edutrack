@@ -3,8 +3,8 @@ from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks
-from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer
+from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable
+from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer
 import json
 
 
@@ -34,11 +34,12 @@ def login_user(request):
         profile = UserProfile.objects.get(user=user)
 
         return JsonResponse({
-            "success": True,
-            "username": user.username,
-            "role": profile.role,
-            "message": "Login successful"
-        })
+    "success": True,
+    "id": user.id,
+    "username": user.username,
+    "role": profile.role,
+    "message": "Login successful"
+})
 
     except Exception:
         return JsonResponse({
@@ -173,3 +174,175 @@ def materials_api(request):
             return Response(serializer.data)
 
         return Response(serializer.errors, status=400)
+
+@api_view(["GET"])
+def faculty_profile(request):
+
+    faculty = Faculty.objects.first()
+
+    if not faculty:
+        return Response({"error": "No faculty found"}, status=404)
+
+    data = {
+        "id": faculty.id,
+        "name": faculty.name,
+        "email": faculty.email,
+        "department": faculty.department,
+        "designation": faculty.designation,
+    }
+
+    return Response(data)
+
+
+@api_view(["GET"])
+def notifications_api(request):
+
+    notifications = Notification.objects.all().order_by("-created_at")[:10]
+    serializer = NotificationSerializer(notifications, many=True)
+
+    return Response(serializer.data)
+
+
+@api_view(["GET","PUT"])
+def settings_api(request):
+
+    settings = Settings.objects.first()
+
+    if request.method == "GET":
+
+        serializer = SettingsSerializer(settings)
+        return Response(serializer.data)
+
+    if request.method == "PUT":
+
+        serializer = SettingsSerializer(settings, data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=400)
+
+@api_view(["GET","POST"])
+def leave_requests_api(request):
+
+    if request.method == "GET":
+
+        leaves = LeaveRequest.objects.all().order_by("-created_at")
+        serializer = LeaveRequestSerializer(leaves,many=True)
+        return Response(serializer.data)
+
+    if request.method == "POST":
+
+        serializer = LeaveRequestSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors,status=400)
+
+@api_view(["GET","POST"])
+def messages_api(request):
+
+    if request.method == "GET":
+
+        messages = Message.objects.all().order_by("-created_at")
+
+        serializer = MessageSerializer(messages,many=True)
+
+        return Response(serializer.data)
+
+    if request.method == "POST":
+
+        serializer = MessageSerializer(data=request.data)
+
+        if serializer.is_valid():
+
+            serializer.save()
+
+            return Response(serializer.data)
+
+        return Response(serializer.errors,status=400)
+
+@api_view(["POST"])
+def change_password(request):
+
+    user = request.user
+
+    current = request.data.get("current")
+    new = request.data.get("new")
+
+    if not user.check_password(current):
+        return Response({"error":"Wrong password"},status=400)
+
+    user.set_password(new)
+    user.save()
+
+    return Response({"message":"Password updated"})
+
+@api_view(["GET","PUT"])
+def student_detail(request, id):
+
+    try:
+        student = Student.objects.get(id=id)
+    except Student.DoesNotExist:
+        return Response({"error":"Student not found"}, status=404)
+
+    if request.method == "GET":
+        serializer = StudentSerializer(student)
+        return Response(serializer.data)
+
+    if request.method == "PUT":
+        serializer = StudentSerializer(student, data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=400)
+
+@api_view(["GET"])
+def student_profile(request):
+
+    username = request.GET.get("username")
+
+    try:
+        student = Student.objects.filter(name=username).first()
+
+        if not student:
+            student = Student.objects.filter(email=username).first()
+
+        if not student:
+            return Response({"error": "Student not found"}, status=404)
+
+        serializer = StudentSerializer(student)
+        return Response(serializer.data)
+
+    except Exception as e:
+        return Response({"error": str(e)}, status=500)
+
+
+@api_view(["GET","POST"])
+def timetable_api(request):
+
+    if request.method == "GET":
+
+        student = request.query_params.get("student")
+
+        timetable = Timetable.objects.filter(student_id=student)
+
+        serializer = TimetableSerializer(timetable,many=True)
+
+        return Response(serializer.data)
+
+    if request.method == "POST":
+
+        serializer = TimetableSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors,status=400)
+

@@ -92,3 +92,116 @@ class StudyMaterial(models.Model):
 
     def __str__(self):
         return self.title
+
+class Notification(models.Model):
+    message = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.message
+
+
+class Settings(models.Model):
+
+    institution_name = models.CharField(max_length=200)
+    address = models.TextField()
+    contact_email = models.EmailField()
+    phone = models.CharField(max_length=20)
+
+    academic_year = models.CharField(max_length=20)
+    semester = models.CharField(max_length=20)
+
+    email_notifications = models.BooleanField(default=True)
+    sms_alerts = models.BooleanField(default=True)
+    weekly_reports = models.BooleanField(default=True)
+
+    def __str__(self):
+        return self.institution_name
+
+
+class LeaveRequest(models.Model):
+
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="leave_requests"
+    )
+
+    faculty = models.ForeignKey(
+        Faculty,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
+    )
+
+    from_date = models.DateField()
+    to_date = models.DateField()
+
+    reason = models.TextField()
+
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("Pending","Pending"),
+            ("Approved","Approved"),
+            ("Rejected","Rejected")
+        ],
+        default="Pending"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student.name} - {self.status}"
+
+class Message(models.Model):
+
+    sender = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="sent_messages"
+    )
+
+    receiver = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="received_messages"
+    )
+
+    subject = models.CharField(max_length=200)
+    body = models.TextField()
+
+    is_read = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.sender} -> {self.receiver}"
+
+class Timetable(models.Model):
+
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        related_name="timetable"
+    )
+
+    day = models.CharField(max_length=20)
+
+    time = models.CharField(max_length=20)
+
+    subject = models.CharField(max_length=100)
+
+    location = models.CharField(max_length=100, blank=True)
+
+    note = models.TextField(blank=True)
+
+    color = models.CharField(
+        max_length=20,
+        default="#2563EB"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.student.name} - {self.day} {self.time}"

@@ -29,7 +29,7 @@ export function FacultySidebar() {
       </div>
       <nav className="flex-1 py-4 px-3 space-y-1">
         {menuItems.map((item) => {
-          const active = location.pathname === item.url;
+          const active = location.pathname.startsWith(item.url);
           return (
             <Link key={item.url} to={item.url}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-md text-sm transition-colors ${

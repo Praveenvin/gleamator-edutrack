@@ -5,6 +5,7 @@ import axios from "axios";
 export type UserRole = "admin" | "faculty" | "student";
 
 interface User {
+  id?: number; // added safely (optional)
   username: string;
   role: UserRole;
 }
@@ -28,12 +29,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const navigate = useNavigate();
 
+  // Load user from localStorage
   useEffect(() => {
+
     const stored = localStorage.getItem("user");
 
     if (stored) {
-      setUser(JSON.parse(stored));
+      try {
+        setUser(JSON.parse(stored));
+      } catch {
+        localStorage.removeItem("user");
+      }
     }
+
   }, []);
 
   const login = async (username: string, password: string) => {
@@ -50,9 +58,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       const data = res.data;
 
+      const role = data.role?.toLowerCase();
+
+      if (!["admin","faculty","student"].includes(role)) {
+        throw new Error("Invalid user role");
+      }
+
       const newUser: User = {
+        id: data.id, // safe optional addition
         username: data.username,
-        role: data.role.toLowerCase() as UserRole
+        role: role as UserRole
       };
 
       setUser(newUser);
