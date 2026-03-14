@@ -6,7 +6,8 @@ from .views import (
     courses_api,
     attendance_api,
     assignments_api,
-    marks_api
+    marks_api,
+    materials_api
 )
 
 urlpatterns = [
@@ -18,4 +19,5 @@ urlpatterns = [
     path('attendance/', attendance_api),
     path('assignments/', assignments_api),
     path('marks/', marks_api),
+    path("materials/", materials_api),
 ]

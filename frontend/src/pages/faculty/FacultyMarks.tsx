@@ -1,52 +1,257 @@
 import { FacultyDashboardLayout } from "@/components/FacultyDashboardLayout";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import axios from "axios";
 
-const studentsMarks = [
-  { id: "STU2547", name: "Arun Kumar", test1: 42, test2: 38, test3: 45, total: "125/150" },
-  { id: "STU2546", name: "Priya Sharma", test1: 48, test2: 46, test3: 44, total: "138/150" },
-  { id: "STU2545", name: "Rahul Verma", test1: 35, test2: 32, test3: 38, total: "105/150" },
-  { id: "STU2544", name: "Sneha Patel", test1: 44, test2: 42, test3: 47, total: "133/150" },
-  { id: "STU2543", name: "Vikram Singh", test1: 30, test2: 28, test3: 35, total: "93/150" },
-  { id: "STU2542", name: "Anita Das", test1: 46, test2: 44, test3: 48, total: "138/150" },
-];
+interface Student {
+  id: number
+  name: string
+}
+
+interface Course {
+  id: number
+  course_name: string
+  course_code: string
+}
+
+interface Mark {
+  student: number
+  course: number
+  marks: number
+  exam_type: string
+}
+
+const STUDENTS_API = "http://127.0.0.1:8000/api/students/"
+const COURSES_API = "http://127.0.0.1:8000/api/courses/"
+const MARKS_API = "http://127.0.0.1:8000/api/marks/"
 
 const FacultyMarks = () => {
-  const [selectedCourse, setSelectedCourse] = useState("CS301");
+
+  const [students,setStudents] = useState<Student[]>([])
+  const [courses,setCourses] = useState<Course[]>([])
+  const [selectedCourse,setSelectedCourse] = useState<number | null>(null)
+
+  const [marks,setMarks] = useState<Record<number,{test1:number,test2:number,test3:number}>>({})
+
+  const fetchStudents = async () => {
+
+    const res = await axios.get(STUDENTS_API)
+    setStudents(res.data)
+
+    const initial:any = {}
+
+    res.data.forEach((s:Student)=>{
+      initial[s.id] = {test1:0,test2:0,test3:0}
+    })
+
+    setMarks(initial)
+
+  }
+
+  const fetchCourses = async () => {
+
+    const res = await axios.get(COURSES_API)
+    setCourses(res.data)
+
+    if(res.data.length>0){
+      setSelectedCourse(res.data[0].id)
+    }
+
+  }
+
+  useEffect(()=>{
+    fetchStudents()
+    fetchCourses()
+  },[])
+
+  const updateMark = (studentId:number,test:string,value:number) => {
+
+    setMarks({
+      ...marks,
+      [studentId]:{
+        ...marks[studentId],
+        [test]:value
+      }
+    })
+
+  }
+
+  const submitMarks = async () => {
+
+    try{
+
+      for(const studentId in marks){
+
+        const m = marks[studentId]
+
+        await axios.post(MARKS_API,{
+          student:studentId,
+          course:selectedCourse,
+          marks:m.test1,
+          exam_type:"Test1"
+        })
+
+        await axios.post(MARKS_API,{
+          student:studentId,
+          course:selectedCourse,
+          marks:m.test2,
+          exam_type:"Test2"
+        })
+
+        await axios.post(MARKS_API,{
+          student:studentId,
+          course:selectedCourse,
+          marks:m.test3,
+          exam_type:"Test3"
+        })
+
+      }
+
+      alert("Marks saved successfully")
+
+    }
+    catch(err){
+      console.error(err)
+      alert("Error saving marks")
+    }
+
+  }
 
   return (
-    <FacultyDashboardLayout>
-      <h1 className="text-2xl font-semibold text-foreground mb-6">Internal Marks</h1>
-      <div className="flex items-center gap-4 mb-6">
-        <select value={selectedCourse} onChange={e => setSelectedCourse(e.target.value)} className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm">
-          <option value="CS301">CS301 - Data Structures</option>
-          <option value="CS302">CS302 - Operating Systems</option>
-          <option value="CS401">CS401 - Machine Learning</option>
-        </select>
-        <button className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium">+ Add Marks</button>
-      </div>
-      <div className="bg-card rounded-lg border border-border p-6">
-        <table className="w-full text-sm">
-          <thead><tr className="border-b border-border">
-            {["ID", "Student Name", "Test 1 (50)", "Test 2 (50)", "Test 3 (50)", "Total (150)"].map(h => (
-              <th key={h} className="text-left py-2 text-muted-foreground font-medium">{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {studentsMarks.map(s => (
-              <tr key={s.id} className="border-b border-border last:border-0">
-                <td className="py-2.5 font-mono text-primary text-xs">{s.id}</td>
-                <td className="py-2.5 text-foreground">{s.name}</td>
-                <td className="py-2.5 text-foreground">{s.test1}</td>
-                <td className="py-2.5 text-foreground">{s.test2}</td>
-                <td className="py-2.5 text-foreground">{s.test3}</td>
-                <td className="py-2.5 font-medium text-foreground">{s.total}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </FacultyDashboardLayout>
-  );
-};
 
-export default FacultyMarks;
+    <FacultyDashboardLayout>
+
+      <h1 className="text-2xl font-semibold text-foreground mb-6">
+        Internal Marks
+      </h1>
+
+      <div className="flex items-center gap-4 mb-6">
+
+        <select
+          value={selectedCourse ?? ""}
+          onChange={(e)=>setSelectedCourse(Number(e.target.value))}
+          className="px-3 py-2 rounded-md border border-border bg-background text-foreground text-sm"
+        >
+
+          {courses.map(c=>(
+            <option key={c.id} value={c.id}>
+              {c.course_code} - {c.course_name}
+            </option>
+          ))}
+
+        </select>
+
+        <button
+          onClick={submitMarks}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium"
+        >
+          Save Marks
+        </button>
+
+      </div>
+
+      <div className="bg-card rounded-lg border border-border p-6">
+
+        <table className="w-full text-sm">
+
+          <thead>
+
+            <tr className="border-b border-border">
+
+              <th className="text-left py-2 text-muted-foreground font-medium">
+                ID
+              </th>
+
+              <th className="text-left py-2 text-muted-foreground font-medium">
+                Student Name
+              </th>
+
+              <th className="text-left py-2 text-muted-foreground font-medium">
+                Test 1 (50)
+              </th>
+
+              <th className="text-left py-2 text-muted-foreground font-medium">
+                Test 2 (50)
+              </th>
+
+              <th className="text-left py-2 text-muted-foreground font-medium">
+                Test 3 (50)
+              </th>
+
+              <th className="text-left py-2 text-muted-foreground font-medium">
+                Total (150)
+              </th>
+
+            </tr>
+
+          </thead>
+
+          <tbody>
+
+            {students.map(s=>{
+
+              const m = marks[s.id] || {test1:0,test2:0,test3:0}
+
+              const total = m.test1 + m.test2 + m.test3
+
+              return(
+
+                <tr key={s.id} className="border-b border-border last:border-0">
+
+                  <td className="py-2.5 font-mono text-primary text-xs">
+                    {s.id}
+                  </td>
+
+                  <td className="py-2.5 text-foreground">
+                    {s.name}
+                  </td>
+
+                  <td>
+                    <input
+                      type="number"
+                      value={m.test1}
+                      onChange={(e)=>updateMark(s.id,"test1",Number(e.target.value))}
+                      className="w-16 border rounded px-1"
+                    />
+                  </td>
+
+                  <td>
+                    <input
+                      type="number"
+                      value={m.test2}
+                      onChange={(e)=>updateMark(s.id,"test2",Number(e.target.value))}
+                      className="w-16 border rounded px-1"
+                    />
+                  </td>
+
+                  <td>
+                    <input
+                      type="number"
+                      value={m.test3}
+                      onChange={(e)=>updateMark(s.id,"test3",Number(e.target.value))}
+                      className="w-16 border rounded px-1"
+                    />
+                  </td>
+
+                  <td className="py-2.5 font-medium text-foreground">
+                    {total}/150
+                  </td>
+
+                </tr>
+
+              )
+
+            })}
+
+          </tbody>
+
+        </table>
+
+      </div>
+
+    </FacultyDashboardLayout>
+
+  )
+
+}
+
+export default FacultyMarks

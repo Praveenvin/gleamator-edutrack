@@ -77,3 +77,18 @@ class InternalMarks(models.Model):
 
     def __str__(self):
         return f"{self.student} - {self.course} - {self.marks}"
+
+class StudyMaterial(models.Model):
+
+    title = models.CharField(max_length=200)
+
+    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+
+    file = models.FileField(upload_to="materials/")
+
+    uploaded_at = models.DateTimeField(auto_now_add=True)
+
+    downloads = models.IntegerField(default=0)
+
+    def __str__(self):
+        return self.title
