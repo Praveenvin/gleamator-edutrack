@@ -3,8 +3,8 @@ from django.contrib.auth import authenticate
 from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable
-from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer
+from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity
+from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer, StudentActivitySerializer
 import json
 
 
@@ -106,7 +106,14 @@ def courses_api(request):
 def attendance_api(request):
 
     if request.method == 'GET':
-        attendance = Attendance.objects.all()
+
+        student_id = request.query_params.get("student")
+
+        if student_id:
+            attendance = Attendance.objects.filter(student_id=student_id)
+        else:
+            attendance = Attendance.objects.all()
+
         serializer = AttendanceSerializer(attendance, many=True)
         return Response(serializer.data)
 
@@ -118,8 +125,6 @@ def attendance_api(request):
             return Response(serializer.data)
 
         return Response(serializer.errors, status=400)
-
-
 @api_view(['GET','POST'])
 def assignments_api(request):
 
@@ -346,3 +351,44 @@ def timetable_api(request):
 
         return Response(serializer.errors,status=400)
 
+@api_view(["GET","POST"])
+def student_activity_api(request):
+
+    if request.method == "GET":
+
+        student = request.query_params.get("student")
+
+        activities = StudentActivity.objects.filter(student_id=student)
+
+        serializer = StudentActivitySerializer(activities,many=True)
+
+        return Response(serializer.data)
+
+    if request.method == "POST":
+
+        serializer = StudentActivitySerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors,status=400)
+
+@api_view(["PUT","DELETE"])
+def student_activity_detail(request,id):
+
+    activity = StudentActivity.objects.get(id=id)
+
+    if request.method == "PUT":
+
+        serializer = StudentActivitySerializer(activity,data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+    if request.method == "DELETE":
+
+        activity.delete()
+
+        return Response({"message":"Deleted"})

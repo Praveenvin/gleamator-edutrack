@@ -4,8 +4,16 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 
 import {
-  LineChart, Line, BarChart, Bar, ScatterChart, Scatter,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  LineChart,
+  Line,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  Legend
 } from "recharts";
 
 const statusColor: Record<string, string> = {
@@ -23,34 +31,82 @@ const Index = () => {
 
   const [attendanceData,setAttendanceData] = useState<any[]>([]);
   const [assignmentData,setAssignmentData] = useState<any[]>([]);
-  const [scatterData,setScatterData] = useState<any[]>([]);
 
   useEffect(()=>{
-
     fetchDashboard();
-
   },[]);
 
   const fetchDashboard = async () => {
 
     try{
 
-      const attendanceRes = await axios.get("http://127.0.0.1:8000/api/attendance/");
-      const assignmentRes = await axios.get("http://127.0.0.1:8000/api/assignments/");
-      const materialRes = await axios.get("http://127.0.0.1:8000/api/materials/");
-      const notificationRes = await axios.get("http://127.0.0.1:8000/api/notifications/");
+      const studentId = 103;
+
+      const attendanceRes = await axios.get(
+        `http://127.0.0.1:8000/api/attendance/?student=${studentId}`
+      );
+
+      const assignmentRes = await axios.get(
+        "http://127.0.0.1:8000/api/assignments/"
+      );
+
+      const materialRes = await axios.get(
+        "http://127.0.0.1:8000/api/materials/"
+      );
+
+      const notificationRes = await axios.get(
+        "http://127.0.0.1:8000/api/notifications/"
+      );
 
       const attendance = attendanceRes.data || [];
       const assignments = assignmentRes.data || [];
 
-      const totalClasses = attendance.reduce((s:any,a:any)=>s+(a.total_classes||0),0);
-      const attended = attendance.reduce((s:any,a:any)=>s+(a.attended_classes||0),0);
+      /* -------- ATTENDANCE CALCULATION -------- */
 
-      const percent = totalClasses
-        ? ((attended/totalClasses)*100).toFixed(1)
-        : 0;
+      const courseMap:any = {};
 
-      const pendingAssignments = assignments.filter((a:any)=>a.status==="Pending").length;
+      attendance.forEach((a:any)=>{
+
+        const subject = a.course_name || `Course ${a.course}`;
+
+        if(!courseMap[subject]){
+          courseMap[subject] = {
+            subject,
+            total:0,
+            attended:0
+          };
+        }
+
+        courseMap[subject].total += 1;
+
+        if(a.status === "Present"){
+          courseMap[subject].attended += 1;
+        }
+
+      });
+
+      const attendanceSummary:any[] = Object.values(courseMap);
+
+const totalClasses:number = attendanceSummary.reduce(
+  (sum:number,c:any)=>sum + Number(c.total),
+  0
+);
+
+const attended:number = attendanceSummary.reduce(
+  (sum:number,c:any)=>sum + Number(c.attended),
+  0
+);
+
+const percent:string =
+  totalClasses > 0
+    ? ((attended / totalClasses) * 100).toFixed(1)
+    : "0";
+
+      /* -------- DASHBOARD STATS -------- */
+
+      const pendingAssignments = assignments.filter(
+        (a:any)=>a.status==="Pending"
+      ).length;
 
       setStats([
         {
@@ -62,7 +118,7 @@ const Index = () => {
         {
           title:"Attendance Status",
           value:`${percent}%`,
-          subtitle:"Calculated from database",
+          subtitle:"Calculated from attendance",
           icon:ClipboardCheck
         },
         {
@@ -79,21 +135,18 @@ const Index = () => {
         }
       ]);
 
-      setMaterials(materialRes.data?.slice(0,3) || []);
+      /* -------- ATTENDANCE CHART -------- */
 
-      setNotifications(notificationRes.data?.slice(0,4) || []);
+      const chartData = attendanceSummary.map((c:any)=>({
 
-      setLeaveRequests([]);
+        subject:c.subject,
+        attendance: Math.round((c.attended / c.total) * 100)
 
-      setAttendanceData(
-        attendance.map((a:any)=>({
-          month:a.subject || "Subject",
-          Math:a.attended_classes || 0,
-          Physics:a.attended_classes || 0,
-          Chemistry:a.attended_classes || 0,
-          CS:a.attended_classes || 0
-        }))
-      );
+      }));
+
+      setAttendanceData(chartData);
+
+      /* -------- ASSIGNMENT CHART -------- */
 
       const assignmentStats:any = {};
 
@@ -101,8 +154,13 @@ const Index = () => {
 
         const subject = a.course || "Subject";
 
-        if(!assignmentStats[subject])
-          assignmentStats[subject] = {subject,Completed:0,Pending:0};
+        if(!assignmentStats[subject]){
+          assignmentStats[subject] = {
+            subject,
+            Completed:0,
+            Pending:0
+          };
+        }
 
         if(a.status==="Completed")
           assignmentStats[subject].Completed +=1;
@@ -113,18 +171,11 @@ const Index = () => {
 
       setAssignmentData(Object.values(assignmentStats));
 
-      setScatterData(
-        attendance.map((a:any)=>({
+      /* -------- MATERIALS & NOTIFICATIONS -------- */
 
-          attendance:
-            a.total_classes
-              ? ((a.attended_classes/a.total_classes)*100)
-              : 0,
-
-          marks: Math.floor(Math.random()*40)+60
-
-        }))
-      );
+      setMaterials(materialRes.data?.slice(0,3) || []);
+      setNotifications(notificationRes.data?.slice(0,4) || []);
+      setLeaveRequests([]);
 
     }
     catch(err){
@@ -147,18 +198,33 @@ const Index = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
 
         {stats.map((s)=>(
+
           <div key={s.title} className="bg-card rounded-lg border border-border p-6">
+
             <div className="flex items-start justify-between">
+
               <div>
+
                 <p className="text-sm text-muted-foreground">{s.title}</p>
-                <p className="text-2xl font-semibold text-foreground mt-1 font-mono-data">{s.value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{s.subtitle}</p>
+
+                <p className="text-2xl font-semibold text-foreground mt-1 font-mono-data">
+                  {s.value}
+                </p>
+
+                <p className="text-xs text-muted-foreground mt-1">
+                  {s.subtitle}
+                </p>
+
               </div>
+
               <div className="h-10 w-10 rounded-md bg-primary/10 flex items-center justify-center">
                 <s.icon className="h-5 w-5 text-primary"/>
               </div>
+
             </div>
+
           </div>
+
         ))}
 
       </div>
@@ -166,6 +232,8 @@ const Index = () => {
       {/* Charts */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+
+        {/* Attendance Chart */}
 
         <div className="bg-card rounded-lg border border-border p-6">
 
@@ -177,22 +245,32 @@ const Index = () => {
 
             <LineChart data={attendanceData}>
 
-              <CartesianGrid strokeDasharray="3 3"/>
-              <XAxis dataKey="month"/>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
+
+              <XAxis dataKey="subject"/>
+
               <YAxis domain={[0,100]}/>
+
               <Tooltip/>
+
               <Legend/>
 
-              <Line type="monotone" dataKey="Math" stroke="#2563EB"/>
-              <Line type="monotone" dataKey="Physics" stroke="#16A34A"/>
-              <Line type="monotone" dataKey="Chemistry" stroke="#F97316"/>
-              <Line type="monotone" dataKey="CS" stroke="#DC2626"/>
+              <Line
+                type="monotone"
+                dataKey="attendance"
+                stroke="#2563EB"
+                strokeWidth={3}
+                dot={{r:5}}
+                activeDot={{r:7}}
+              />
 
             </LineChart>
 
           </ResponsiveContainer>
 
         </div>
+
+        {/* Assignment Chart */}
 
         <div className="bg-card rounded-lg border border-border p-6">
 
@@ -205,12 +283,17 @@ const Index = () => {
             <BarChart data={assignmentData}>
 
               <CartesianGrid strokeDasharray="3 3"/>
+
               <XAxis dataKey="subject"/>
+
               <YAxis/>
+
               <Tooltip/>
+
               <Legend/>
 
               <Bar dataKey="Completed" fill="#2563EB"/>
+
               <Bar dataKey="Pending" fill="#F97316"/>
 
             </BarChart>
@@ -225,6 +308,8 @@ const Index = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
+        {/* Study Materials */}
+
         <div className="bg-card rounded-lg border border-border p-6">
 
           <h2 className="text-base font-medium text-foreground mb-4">
@@ -232,6 +317,7 @@ const Index = () => {
           </h2>
 
           {materials.map((m:any)=>(
+
             <div key={m.id} className="py-2 border-b border-border last:border-0">
 
               <p className="text-sm font-medium text-foreground">
@@ -243,9 +329,12 @@ const Index = () => {
               </p>
 
             </div>
+
           ))}
 
         </div>
+
+        {/* Leave Requests */}
 
         <div className="bg-card rounded-lg border border-border p-6">
 
@@ -254,6 +343,7 @@ const Index = () => {
           </h2>
 
           {leaveRequests.map((l:any)=>(
+
             <div key={l.id} className="py-2 border-b border-border">
 
               <p className="text-sm text-foreground">
@@ -265,9 +355,12 @@ const Index = () => {
               </span>
 
             </div>
+
           ))}
 
         </div>
+
+        {/* Notifications */}
 
         <div className="bg-card rounded-lg border border-border p-6">
 
@@ -276,6 +369,7 @@ const Index = () => {
           </h2>
 
           {notifications.map((n:any)=>(
+
             <div key={n.id} className="py-2 border-b border-border">
 
               <p className="text-sm text-foreground">
@@ -283,6 +377,7 @@ const Index = () => {
               </p>
 
             </div>
+
           ))}
 
         </div>

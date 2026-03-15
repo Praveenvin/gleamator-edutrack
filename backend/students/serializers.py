@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial,Notification, Settings, LeaveRequest, Message,Timetable
+from .models import Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial,Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -21,6 +21,7 @@ class CourseSerializer(serializers.ModelSerializer):
 
 
 class AttendanceSerializer(serializers.ModelSerializer):
+    course_name = serializers.StringRelatedField(source="course", read_only=True)
     class Meta:
         model = Attendance
         fields = "__all__"
@@ -73,4 +74,11 @@ class TimetableSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Timetable
+        fields = "__all__"
+
+
+class StudentActivitySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = StudentActivity
         fields = "__all__"

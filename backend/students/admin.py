@@ -12,7 +12,8 @@ from .models import (
     LeaveRequest,
     Message,
     UserProfile,
-    Timetable
+    Timetable,
+    StudentActivity
 )
 
 admin.site.register(Student)
@@ -28,4 +29,5 @@ admin.site.register(LeaveRequest)
 admin.site.register(Message)
 admin.site.register(UserProfile)
 admin.site.register(Timetable)
+admin.site.register(StudentActivity)
 

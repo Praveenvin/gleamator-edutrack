@@ -205,3 +205,15 @@ class Timetable(models.Model):
 
     def __str__(self):
         return f"{self.student.name} - {self.day} {self.time}"
+
+class StudentActivity(models.Model):
+
+    student = models.ForeignKey(Student,on_delete=models.CASCADE)
+
+    day = models.CharField(max_length=20)
+
+    time = models.CharField(max_length=10)
+
+    activity = models.CharField(max_length=100)
+
+    created_at = models.DateTimeField(auto_now_add=True)

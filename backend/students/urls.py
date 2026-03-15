@@ -17,6 +17,8 @@ from .views import (
     student_detail,
     student_profile,
     timetable_api,
+    student_activity_api,
+    student_activity_detail,
 
 )
 
@@ -39,4 +41,6 @@ urlpatterns = [
     path("students/<int:id>/", student_detail),
     path("student-profile/", student_profile),
     path("timetable/",timetable_api),
+    path("student-activities/",student_activity_api),
+    path("student-activities/<int:id>/",student_activity_detail),
 ]
