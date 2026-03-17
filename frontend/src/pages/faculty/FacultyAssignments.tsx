@@ -1,80 +1,123 @@
 import { FacultyDashboardLayout } from "@/components/FacultyDashboardLayout";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
 
 interface Assignment {
   id: number;
   title: string;
   description: string;
-  course: number;
   due_date: string;
+  file_url?: string;
 }
 
 const API = "http://127.0.0.1:8000/api/assignments/";
 
-const statusStyle: Record<string, string> = {
-  Active: "text-success bg-success/10",
-  Graded: "text-primary bg-primary/10",
-};
-
 const FacultyAssignments = () => {
 
-  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [adminAssignments, setAdminAssignments] = useState<Assignment[]>([]);
+  const [myAssignments, setMyAssignments] = useState<Assignment[]>([]);
+
   const [showModal, setShowModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
+
+  const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<Assignment | null>(null);
 
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+
+  const [file, setFile] = useState<File | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
   const [form, setForm] = useState({
+    id: 0,
     title: "",
     description: "",
-    course: 1,
     due_date: ""
   });
 
+  /* FETCH */
+
   const fetchAssignments = async () => {
-    try {
-      const res = await axios.get(API);
-      setAssignments(res.data);
-    } catch (error) {
-      console.error(error);
-    }
+    const res = await axios.get(API);
+
+    const admin = res.data.filter((a:any)=>a.created_by === "admin");
+    const faculty = res.data.filter((a:any)=>a.created_by === "faculty");
+
+    setAdminAssignments(admin);
+    setMyAssignments(faculty);
   };
 
-  useEffect(() => {
+  useEffect(()=>{
     fetchAssignments();
-  }, []);
+  },[]);
 
-  const handleChange = (e: any) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value
-    });
+  /* HANDLERS */
+
+  const handleChange = (e:any)=>{
+    setForm({...form,[e.target.name]:e.target.value});
   };
 
-  const createAssignment = async () => {
-    try {
+  const openAdd = ()=>{
+    setEditing(false);
+    setFile(null);
+    setFormError(null);
+    setForm({id:0,title:"",description:"",due_date:""});
+    setShowModal(true);
+  };
 
-      await axios.post(API, form);
+  const openEdit = (a:Assignment)=>{
+    setEditing(true);
+    setFile(null);
+    setFormError(null);
+    setForm(a);
+    setShowModal(true);
+  };
 
-      setForm({
-        title: "",
-        description: "",
-        course: 1,
-        due_date: ""
-      });
+  /* SAVE */
+
+  const saveAssignment = async ()=>{
+
+    if(!form.title || !form.due_date){
+      setFormError("All fields are required");
+      return;
+    }
+
+    try{
+
+      const formData = new FormData();
+
+      formData.append("title",form.title);
+      formData.append("description",form.description);
+      formData.append("due_date",form.due_date);
+      formData.append("created_by","faculty");
+
+      if(file){
+        formData.append("file",file);
+      }
+
+      if(editing){
+        await axios.put(`${API}${form.id}/`,formData);
+      }else{
+        await axios.post(API,formData);
+      }
 
       setShowModal(false);
-
       fetchAssignments();
 
-    } catch (error) {
-      console.error(error);
+    }catch{
+      setFormError("Error saving assignment");
     }
   };
 
-  const openView = (a: Assignment) => {
-    setSelected(a);
-    setViewModal(true);
+  /* DELETE */
+
+  const confirmDelete = async () => {
+    if (!deleteId) return;
+
+    await axios.delete(`${API}${deleteId}/`);
+    setDeleteId(null);
+    fetchAssignments();
   };
 
   return (
@@ -84,142 +127,210 @@ const FacultyAssignments = () => {
         Assignments
       </h1>
 
-      <div className="flex justify-end mb-4">
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm font-medium"
-        >
-          + Create Assignment
-        </button>
-      </div>
+      {/* ADMIN ASSIGNMENTS */}
 
-      <div className="bg-card rounded-lg border border-border p-6">
+      <div className="mb-8">
 
-        <table className="w-full text-sm">
+        <h2 className="text-lg font-semibold mb-4">
+          Assignments from Admin
+        </h2>
 
-          <thead>
-            <tr className="border-b border-border">
-              {["ID", "Title", "Course", "Due Date", "Submissions", "Status", "Action"].map(h => (
-                <th key={h} className="text-left py-2 text-muted-foreground font-medium">
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
+        <div className="bg-card rounded-lg border border-border overflow-hidden">
 
-          <tbody>
+          <table className="w-full text-sm">
 
-            {assignments.map(a => (
-
-              <tr key={a.id} className="border-b border-border last:border-0">
-
-                <td className="py-2.5 font-mono text-primary text-xs">
-                  ASG{a.id.toString().padStart(3, "0")}
-                </td>
-
-                <td className="py-2.5 text-foreground">
-                  {a.title}
-                </td>
-
-                <td className="py-2.5 text-muted-foreground">
-                  {a.course}
-                </td>
-
-                <td className="py-2.5 text-muted-foreground">
-                  {a.due_date}
-                </td>
-
-                <td className="py-2.5 text-foreground">
-                  —
-                </td>
-
-                <td className="py-2.5">
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusStyle["Active"]}`}>
-                    Active
-                  </span>
-                </td>
-
-                <td className="py-2.5">
-                  <button
-                    onClick={() => openView(a)}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    View
-                  </button>
-                </td>
-
+            <thead className="bg-secondary/50">
+              <tr>
+                {["Title","Due Date","File","Action"].map(h=>(
+                  <th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">{h}</th>
+                ))}
               </tr>
+            </thead>
 
-            ))}
+            <tbody>
+              {adminAssignments.map(a=>(
+                <tr key={a.id} className="border-t border-border hover:bg-secondary/40 transition">
 
-          </tbody>
+                  <td className="px-4 py-3 font-medium">{a.title}</td>
+                  <td className="px-4 py-3">{a.due_date}</td>
 
-        </table>
+                  <td className="px-4 py-3">
+                    {a.file_url ? (
+                      <button
+                        onClick={()=>{setSelected(a);setViewModal(true);}}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition"
+                      >
+                        View File
+                      </button>
+                    ) : "-"}
+                  </td>
+
+                  <td className="px-4 py-3">
+                    <button
+                      className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition"
+                    >
+                      Submissions
+                    </button>
+                  </td>
+
+                </tr>
+              ))}
+            </tbody>
+
+          </table>
+
+        </div>
 
       </div>
 
-      {/* CREATE MODAL */}
+      {/* MY ASSIGNMENTS */}
+
+      <div>
+
+        <div className="flex justify-between items-center mb-4">
+
+          <h2 className="text-lg font-semibold">
+            My Assignments
+          </h2>
+
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
+          >
+            <Plus size={18}/>
+            Create Assignment
+          </button>
+
+        </div>
+
+        <div className="bg-card rounded-lg border border-border overflow-hidden">
+
+          <table className="w-full text-sm">
+
+            <thead className="bg-secondary/50">
+              <tr>
+                {["Title","Due Date","File","Actions"].map(h=>(
+                  <th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">{h}</th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody>
+              {myAssignments.map(a=>(
+                <tr key={a.id} className="border-t border-border hover:bg-secondary/40 transition">
+
+                  <td className="px-4 py-3 font-medium">{a.title}</td>
+                  <td className="px-4 py-3">{a.due_date}</td>
+
+                  <td className="px-4 py-3">
+                    {a.file_url ? (
+                      <button
+                        onClick={()=>{setSelected(a);setViewModal(true);}}
+                        className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary"
+                      >
+                        View File
+                      </button>
+                    ) : "-"}
+                  </td>
+
+                  <td className="px-4 py-3 flex gap-2">
+
+                    <button
+                      onClick={()=>openEdit(a)}
+                      className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition"
+                    >
+                      <Pencil size={16}/>
+                    </button>
+
+                    <button
+                      onClick={()=>setDeleteId(a.id)}
+                      className="p-1.5 rounded text-red-600 hover:bg-red-100 transition"
+                    >
+                      <Trash2 size={16}/>
+                    </button>
+
+                  </td>
+
+                </tr>
+              ))}
+            </tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+      {/* CREATE / EDIT MODAL */}
 
       {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
 
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-[420px] shadow-lg">
 
-          <div className="bg-white rounded-lg p-6 w-96">
+            <div className="flex justify-between mb-4">
+              <h2 className="font-semibold">
+                {editing ? "Edit Assignment" : "Create Assignment"}
+              </h2>
+              <button onClick={()=>setShowModal(false)}>
+                <X size={18}/>
+              </button>
+            </div>
 
-            <h2 className="text-lg font-semibold mb-4">
-              Create Assignment
-            </h2>
+            {formError && (
+              <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+                {formError}
+              </div>
+            )}
 
             <div className="flex flex-col gap-3">
 
-              <input
-                name="title"
-                placeholder="Title"
-                value={form.title}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
+              <input name="title" placeholder="Title" value={form.title} onChange={handleChange} className="border px-3 py-2 rounded-lg text-sm"/>
 
-              <input
-                name="course"
-                placeholder="Course ID"
-                value={form.course}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
+              <input type="date" name="due_date" value={form.due_date} onChange={handleChange} className="border px-3 py-2 rounded-lg text-sm"/>
 
-              <input
-                name="due_date"
-                type="date"
-                value={form.due_date}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
+              {/* UPLOAD */}
+              <div className="border border-dashed border-border rounded-xl p-5 text-center hover:border-primary/50 transition">
 
-              <textarea
-                name="description"
-                placeholder="Description"
-                value={form.description}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
+                <input
+                  type="file"
+                  onChange={(e)=>setFile(e.target.files?.[0] || null)}
+                  className="hidden"
+                  id="facultyUpload"
+                />
+
+                {!file ? (
+                  <label htmlFor="facultyUpload" className="cursor-pointer flex flex-col items-center gap-2">
+                    <div className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 text-primary">↑</div>
+                    <p className="text-sm text-muted-foreground">Click to upload file</p>
+                  </label>
+                ) : (
+                  <div className="flex items-center justify-between bg-secondary/40 px-4 py-3 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">{(file.size/1024).toFixed(1)} KB</p>
+                    </div>
+                    <button onClick={()=>setFile(null)} className="text-red-600 text-xs hover:underline">Remove</button>
+                  </div>
+                )}
+
+              </div>
+
+              <textarea name="description" placeholder="Description" value={form.description} onChange={handleChange} className="border px-3 py-2 rounded-lg text-sm"/>
 
             </div>
 
-            <div className="flex justify-end gap-3 mt-4">
+            <div className="flex justify-end gap-3 mt-5">
 
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-3 py-2 border rounded"
-              >
+              <button onClick={()=>setShowModal(false)} className="px-4 py-2 border rounded-lg text-sm">
                 Cancel
               </button>
 
               <button
-                onClick={createAssignment}
-                className="bg-primary text-white px-4 py-2 rounded"
+                onClick={saveAssignment}
+                className="px-4 py-2 bg-primary text-white rounded-lg text-sm shadow hover:bg-primary/90 transition"
               >
-                Save
+                {editing ? "Update" : "Create"}
               </button>
 
             </div>
@@ -227,37 +338,90 @@ const FacultyAssignments = () => {
           </div>
 
         </div>
-
       )}
 
       {/* VIEW MODAL */}
 
       {viewModal && selected && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
 
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+          <div className="bg-white p-6 rounded-xl w-[520px] shadow-lg">
 
-          <div className="bg-white rounded-lg p-6 w-96">
-
-            <h2 className="text-lg font-semibold mb-4">
-              Assignment Details
-            </h2>
-
-            <div className="space-y-2 text-sm">
-
-              <p><b>Title:</b> {selected.title}</p>
-              <p><b>Course:</b> {selected.course}</p>
-              <p><b>Due Date:</b> {selected.due_date}</p>
-              <p><b>Description:</b> {selected.description}</p>
-
+            <div className="flex justify-between mb-4">
+              <h2 className="font-semibold">Assignment Details</h2>
+              <button onClick={()=>setViewModal(false)}>
+                <X size={18}/>
+              </button>
             </div>
 
-            <div className="flex justify-end mt-4">
+            <p className="font-medium">{selected.title}</p>
+            <p className="text-sm text-muted-foreground">{selected.description}</p>
+
+            {selected.file_url && (
+              <div className="mt-4 bg-secondary/40 border border-border rounded-lg p-4 flex justify-between items-center">
+
+                <div>
+                  <p className="text-sm font-medium">Attachment</p>
+                  <p className="text-xs text-muted-foreground">Open in new tab</p>
+                </div>
+
+                <div className="flex gap-2">
+
+                  <a
+                    href={`http://127.0.0.1:8000${selected.file_url}`}
+                    target="_blank"
+                    className="px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs hover:bg-primary/20 transition"
+                  >
+                    Preview
+                  </a>
+
+                  <a
+                    href={`http://127.0.0.1:8000${selected.file_url}`}
+                    download
+                    className="px-3 py-1.5 rounded-lg bg-primary text-white text-xs hover:bg-primary/90 transition"
+                  >
+                    Download
+                  </a>
+
+                </div>
+
+              </div>
+            )}
+
+          </div>
+
+        </div>
+      )}
+
+      {/* DELETE MODAL */}
+
+      {deleteId && (
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+
+          <div className="bg-white p-6 rounded-xl w-[340px] text-center shadow-lg">
+
+            <h2 className="text-lg font-semibold mb-2">
+              Delete Assignment
+            </h2>
+
+            <p className="text-sm text-muted-foreground mb-5">
+              This action cannot be undone. Are you sure?
+            </p>
+
+            <div className="flex justify-center gap-4">
 
               <button
-                onClick={() => setViewModal(false)}
-                className="px-3 py-2 border rounded"
+                onClick={()=>setDeleteId(null)}
+                className="px-4 py-2 border border-border rounded-lg text-sm hover:bg-secondary transition"
               >
-                Close
+                Cancel
+              </button>
+
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 shadow"
+              >
+                Delete
               </button>
 
             </div>
@@ -265,7 +429,6 @@ const FacultyAssignments = () => {
           </div>
 
         </div>
-
       )}
 
     </FacultyDashboardLayout>

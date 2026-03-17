@@ -1,196 +1,310 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import {
+BarChart,
+Bar,
+XAxis,
+YAxis,
+CartesianGrid,
+Tooltip,
+ResponsiveContainer,
+Cell
+} from "recharts";
+
 import { useEffect, useState } from "react";
 import axios from "axios";
 
-interface Attendance {
-  id: number;
-  student: number;
-  course: number;
-  date: string;
-  status: string;
+interface Attendance{
+id:number;
+student:number;
+course:number;
+date:string;
+status:string;
 }
 
-const AdminAttendance = () => {
+interface Course{
+id:number;
+course_name:string;
+}
 
-  const [attendance, setAttendance] = useState<Attendance[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [trend, setTrend] = useState<any[]>([]);
+const ATTENDANCE_API="http://127.0.0.1:8000/api/attendance/";
+const COURSE_API="http://127.0.0.1:8000/api/courses/";
 
-  const fetchAttendance = async () => {
-    try {
-      const res = await axios.get("http://127.0.0.1:8000/api/attendance/");
-      setAttendance(res.data);
+const colors=[
+"#3b82f6",
+"#10b981",
+"#f59e0b",
+"#8b5cf6",
+"#ef4444",
+"#14b8a6",
+"#6366f1",
+"#ec4899"
+];
 
-      generateDepartmentStats(res.data);
-      generateTrend(res.data);
+const months=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-    } catch (error) {
-      console.error("Error fetching attendance:", error);
-    }
-  };
+const AdminAttendance=()=>{
 
-  useEffect(() => {
-    fetchAttendance();
-  }, []);
+const[attendance,setAttendance]=useState<Attendance[]>([]);
+const[courses,setCourses]=useState<Course[]>([]);
+const[data,setData]=useState<any[]>([]);
+const[monthFilter,setMonthFilter]=useState("");
 
-  const generateDepartmentStats = (data: Attendance[]) => {
+/* ---------------- FETCH ---------------- */
 
-    const map: any = {};
+const fetchData=async()=>{
+try{
+const[aRes,cRes]=await Promise.all([
+axios.get(ATTENDANCE_API),
+axios.get(COURSE_API)
+]);
 
-    data.forEach((a) => {
+setAttendance(aRes.data);
+setCourses(cRes.data);
 
-      if (!map[a.course]) {
-        map[a.course] = { dept: `Course ${a.course}`, total: 0, present: 0 };
-      }
+}catch(err){
+console.error(err);
+}
+};
 
-      map[a.course].total += 1;
+useEffect(()=>{
+fetchData();
+},[]);
 
-      if (a.status === "Present") {
-        map[a.course].present += 1;
-      }
+/* ---------------- FILTER ---------------- */
 
-    });
+const getFilteredData=()=>{
 
-    const result = Object.values(map).map((d: any) => ({
-      ...d,
-      percentage: Math.round((d.present / d.total) * 100)
-    }));
+let filtered=[...attendance];
 
-    setDepartments(result);
-  };
+if(monthFilter){
+filtered=filtered.filter(a=>{
+const m=new Date(a.date).getMonth()+1;
+return m===Number(monthFilter);
+});
+}
 
-  const generateTrend = (data: Attendance[]) => {
+return filtered;
 
-    const months: any = {};
+};
 
-    data.forEach((a) => {
+/* ---------------- PROCESS ---------------- */
 
-      const month = new Date(a.date).toLocaleString("default", { month: "short" });
+const generateData=()=>{
 
-      if (!months[month]) {
-        months[month] = { month, total: 0, present: 0 };
-      }
+const filtered=getFilteredData();
 
-      months[month].total += 1;
+const map:any={};
 
-      if (a.status === "Present") {
-        months[month].present += 1;
-      }
+filtered.forEach(a=>{
 
-    });
+const cname=courses.find(c=>c.id===a.course)?.course_name;
+if(!cname) return;
 
-    const result = Object.values(months).map((m: any) => ({
-      month: m.month,
-      cs: Math.round((m.present / m.total) * 100),
-      ece: Math.round((m.present / m.total) * 100),
-      mech: Math.round((m.present / m.total) * 100)
-    }));
+if(!map[cname]){
+map[cname]={course:cname,total:0,present:0};
+}
 
-    setTrend(result);
-  };
+map[cname].total++;
 
-  const totalRecords = attendance.length;
-  const present = attendance.filter(a => a.status === "Present").length;
-  const overall = totalRecords ? Math.round((present / totalRecords) * 100) : 0;
+if(a.status==="Present"){
+map[cname].present++;
+}
 
-  const absenteesToday = attendance.filter(a => a.status === "Absent").length;
+});
 
-  const lowAttendance = departments.filter((d: any) => d.percentage < 75).length;
+const result=Object.values(map).map((r:any)=>({
+course:r.course,
+attendance:Math.round((r.present/r.total)*100),
+total:r.total,
+present:r.present
+})).sort((a:any,b:any)=>b.attendance-a.attendance);
 
-  return (
-    <AdminDashboardLayout>
+setData(result);
 
-      <h1 className="text-2xl font-semibold text-foreground mb-6">Attendance Management</h1>
+};
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+useEffect(()=>{
+generateData();
+},[attendance,courses,monthFilter]);
 
-        {[
-          { label: "Overall Attendance", value: `${overall}%`, sub: "This semester" },
-          { label: "Low Attendance Alerts", value: lowAttendance, sub: "Below 75%" },
-          { label: "Today's Absentees", value: absenteesToday, sub: "Across all departments" },
-        ].map(s => (
-          <div key={s.label} className="bg-card rounded-lg border border-border p-6">
-            <p className="text-sm text-muted-foreground">{s.label}</p>
-            <p className="text-3xl font-bold text-foreground mt-1">{s.value}</p>
-            <p className="text-xs text-muted-foreground mt-1">{s.sub}</p>
-          </div>
-        ))}
+/* ---------------- STATS ---------------- */
 
-      </div>
+const total=attendance.length;
+const present=attendance.filter(a=>a.status==="Present").length;
+const overall=total?Math.round((present/total)*100):0;
+const absentees=attendance.filter(a=>a.status==="Absent").length;
+const lowAttendance=data.filter((d:any)=>d.attendance<75).length;
 
-      <div className="bg-card rounded-lg border border-border p-6 mb-6">
+/* ---------------- TOOLTIP ---------------- */
 
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          Department-wise Attendance
-        </h2>
+const CustomTooltip = ({ active, payload }: any) => {
 
-        <table className="w-full text-sm">
+if (!active || !payload || !payload.length) return null;
 
-          <thead>
-            <tr className="border-b border-border">
-              {["Department", "Total Students", "Present Today", "Attendance %"].map(h => (
-                <th key={h} className="text-left py-2 text-muted-foreground font-medium">{h}</th>
-              ))}
-            </tr>
-          </thead>
+const item = payload[0];
 
-          <tbody>
+return (
+<div className="bg-white border shadow-md rounded-lg px-3 py-2 text-sm">
+<p className="font-medium">{item.payload.course}</p>
+<p style={{color:item.color}}>
+Attendance: {item.value}%
+</p>
+</div>
+);
 
-            {departments.map((d: any) => (
-              <tr key={d.dept} className="border-b border-border last:border-0">
+};
 
-                <td className="py-2.5 text-foreground">{d.dept}</td>
-                <td className="py-2.5 text-foreground">{d.total}</td>
-                <td className="py-2.5 text-foreground">{d.present}</td>
+/* ---------------- UI ---------------- */
 
-                <td className="py-2.5">
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${d.percentage >= 85 ? "text-success bg-success/10" : "text-destructive bg-destructive/10"}`}>
-                    {d.percentage}%
-                  </span>
-                </td>
+return(
 
-              </tr>
-            ))}
+<AdminDashboardLayout>
 
-          </tbody>
+<h1 className="text-2xl font-semibold text-foreground mb-6">
+Attendance Management
+</h1>
 
-        </table>
+{/* FILTER */}
 
-      </div>
+<div className="flex flex-wrap items-center gap-4 mb-6">
 
-      <div className="bg-card rounded-lg border border-border p-6">
+<select
+value={monthFilter}
+onChange={(e)=>setMonthFilter(e.target.value)}
+className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+>
+<option value="">All Months</option>
+{months.map((m,i)=>(
+<option key={i} value={i+1}>{m}</option>
+))}
+</select>
 
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          Attendance Trend
-        </h2>
+</div>
 
-        <ResponsiveContainer width="100%" height={280}>
+{/* CARDS */}
 
-          <LineChart data={trend}>
+<div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
 
-            <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+{[
+{label:"Overall Attendance",value:`${overall}%`,sub:"All courses"},
+{label:"Low Attendance Alerts",value:lowAttendance,sub:"Below 75%"},
+{label:"Total Absentees",value:absentees,sub:"Across courses"}
+].map(c=>(
+<div key={c.label} className="bg-card rounded-lg border border-border p-6">
+<p className="text-sm text-muted-foreground">{c.label}</p>
+<p className="text-3xl font-bold mt-1">{c.value}</p>
+<p className="text-xs text-muted-foreground mt-1">{c.sub}</p>
+</div>
+))}
 
-            <XAxis dataKey="month" stroke="hsl(var(--muted-foreground))" fontSize={12} />
+</div>
 
-            <YAxis stroke="hsl(var(--muted-foreground))" fontSize={12} />
+{/* TABLE */}
 
-            <Tooltip />
+<div className="bg-card rounded-lg border border-border overflow-hidden mb-6">
 
-            <Line type="monotone" dataKey="cs" stroke="hsl(var(--primary))" name="CS" strokeWidth={2} />
+<table className="w-full text-sm">
 
-            <Line type="monotone" dataKey="ece" stroke="hsl(var(--success))" name="ECE" strokeWidth={2} />
+<thead className="bg-secondary/50">
+<tr>
+{["Course","Total","Present","Attendance %"].map(h=>(
+<th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">
+{h}
+</th>
+))}
+</tr>
+</thead>
 
-            <Line type="monotone" dataKey="mech" stroke="hsl(var(--warning))" name="Mech" strokeWidth={2} />
+<tbody>
 
-          </LineChart>
+{data.map((d:any)=>(
+<tr key={d.course} className="border-t border-border hover:bg-secondary/40 transition">
 
-        </ResponsiveContainer>
+<td className="px-4 py-3 font-medium text-foreground">
+{d.course}
+</td>
 
-      </div>
+<td className="px-4 py-3">{d.total}</td>
 
-    </AdminDashboardLayout>
-  );
+<td className="px-4 py-3">{d.present}</td>
+
+<td className="px-4 py-3">
+
+<span className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+d.attendance>=85
+? "bg-emerald-100 text-emerald-700"
+: "bg-red-100 text-red-700"
+}`}>
+{d.attendance}%
+</span>
+
+</td>
+
+</tr>
+))}
+
+</tbody>
+
+</table>
+
+</div>
+
+{/* GRAPH */}
+
+<div className="bg-card rounded-lg border border-border p-6">
+
+<h2 className="text-lg font-semibold text-foreground mb-4">
+Attendance by Course
+</h2>
+
+<ResponsiveContainer width="100%" height={320}>
+
+<BarChart data={data} layout="vertical">
+
+<CartesianGrid strokeDasharray="3 3" />
+
+<XAxis type="number" domain={[0,100]} />
+
+<YAxis
+type="category"
+dataKey="course"
+width={200}
+/>
+
+<Tooltip content={<CustomTooltip />} />
+
+{/* GRADIENT */}
+
+<defs>
+{colors.map((color,i)=>(
+<linearGradient key={i} id={`grad${i}`} x1="0" y1="0" x2="1" y2="0">
+<stop offset="0%" stopColor={color} stopOpacity={0.7}/>
+<stop offset="100%" stopColor={color} stopOpacity={1}/>
+</linearGradient>
+))}
+</defs>
+
+<Bar dataKey="attendance" radius={[0,10,10,0]}>
+
+{data.map((entry,index)=>(
+<Cell
+key={index}
+fill={`url(#grad${index % colors.length})`}
+/>
+))}
+
+</Bar>
+
+</BarChart>
+
+</ResponsiveContainer>
+
+</div>
+
+</AdminDashboardLayout>
+
+);
+
 };
 
 export default AdminAttendance;

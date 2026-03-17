@@ -22,6 +22,8 @@ const statusColor: Record<string, string> = {
   Rejected: "text-destructive bg-destructive/10",
 };
 
+const STUDENT_ID = 103;
+
 const Index = () => {
 
   const [stats,setStats] = useState<any[]>([]);
@@ -40,14 +42,12 @@ const Index = () => {
 
     try{
 
-      const studentId = 103;
-
       const attendanceRes = await axios.get(
-        `http://127.0.0.1:8000/api/attendance/?student=${studentId}`
+        `http://127.0.0.1:8000/api/attendance/?student=${STUDENT_ID}`
       );
 
       const assignmentRes = await axios.get(
-        "http://127.0.0.1:8000/api/assignments/"
+        `http://127.0.0.1:8000/api/assignments/?student=${STUDENT_ID}`
       );
 
       const materialRes = await axios.get(
@@ -61,7 +61,7 @@ const Index = () => {
       const attendance = attendanceRes.data || [];
       const assignments = assignmentRes.data || [];
 
-      /* -------- ATTENDANCE CALCULATION -------- */
+      /* ---------- ATTENDANCE CALCULATION ---------- */
 
       const courseMap:any = {};
 
@@ -87,25 +87,25 @@ const Index = () => {
 
       const attendanceSummary:any[] = Object.values(courseMap);
 
-const totalClasses:number = attendanceSummary.reduce(
-  (sum:number,c:any)=>sum + Number(c.total),
-  0
-);
+      const totalClasses:number = attendanceSummary.reduce(
+        (sum:number,c:any)=>sum + Number(c.total),
+        0
+      );
 
-const attended:number = attendanceSummary.reduce(
-  (sum:number,c:any)=>sum + Number(c.attended),
-  0
-);
+      const attended:number = attendanceSummary.reduce(
+        (sum:number,c:any)=>sum + Number(c.attended),
+        0
+      );
 
-const percent:string =
-  totalClasses > 0
-    ? ((attended / totalClasses) * 100).toFixed(1)
-    : "0";
+      const percent:string =
+        totalClasses > 0
+          ? ((attended / totalClasses) * 100).toFixed(1)
+          : "0";
 
-      /* -------- DASHBOARD STATS -------- */
+      /* ---------- DASHBOARD STATS ---------- */
 
       const pendingAssignments = assignments.filter(
-        (a:any)=>a.status==="Pending"
+        (a:any)=>a.status === "Pending"
       ).length;
 
       setStats([
@@ -135,18 +135,16 @@ const percent:string =
         }
       ]);
 
-      /* -------- ATTENDANCE CHART -------- */
+      /* ---------- ATTENDANCE CHART ---------- */
 
       const chartData = attendanceSummary.map((c:any)=>({
-
         subject:c.subject,
         attendance: Math.round((c.attended / c.total) * 100)
-
       }));
 
       setAttendanceData(chartData);
 
-      /* -------- ASSIGNMENT CHART -------- */
+      /* ---------- ASSIGNMENT CHART ---------- */
 
       const assignmentStats:any = {};
 
@@ -157,21 +155,24 @@ const percent:string =
         if(!assignmentStats[subject]){
           assignmentStats[subject] = {
             subject,
-            Completed:0,
+            Submitted:0,
             Pending:0
           };
         }
 
-        if(a.status==="Completed")
-          assignmentStats[subject].Completed +=1;
-        else
+        if(a.status === "Submitted"){
+          assignmentStats[subject].Submitted +=1;
+        }
+
+        if(a.status === "Pending"){
           assignmentStats[subject].Pending +=1;
+        }
 
       });
 
       setAssignmentData(Object.values(assignmentStats));
 
-      /* -------- MATERIALS & NOTIFICATIONS -------- */
+      /* ---------- MATERIALS & NOTIFICATIONS ---------- */
 
       setMaterials(materialRes.data?.slice(0,3) || []);
       setNotifications(notificationRes.data?.slice(0,4) || []);
@@ -179,9 +180,7 @@ const percent:string =
 
     }
     catch(err){
-
       console.error("Dashboard load error:",err);
-
     }
 
   };
@@ -193,7 +192,7 @@ const percent:string =
         Welcome back
       </p>
 
-      {/* Stat Cards */}
+      {/* ---------- STAT CARDS ---------- */}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
 
@@ -229,7 +228,7 @@ const percent:string =
 
       </div>
 
-      {/* Charts */}
+      {/* ---------- CHARTS ---------- */}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
 
@@ -245,7 +244,7 @@ const percent:string =
 
             <LineChart data={attendanceData}>
 
-              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb"/>
+              <CartesianGrid strokeDasharray="3 3"/>
 
               <XAxis dataKey="subject"/>
 
@@ -261,7 +260,6 @@ const percent:string =
                 stroke="#2563EB"
                 strokeWidth={3}
                 dot={{r:5}}
-                activeDot={{r:7}}
               />
 
             </LineChart>
@@ -280,7 +278,7 @@ const percent:string =
 
           <ResponsiveContainer width="100%" height={280}>
 
-            <BarChart data={assignmentData}>
+            <LineChart data={assignmentData}>
 
               <CartesianGrid strokeDasharray="3 3"/>
 
@@ -292,93 +290,25 @@ const percent:string =
 
               <Legend/>
 
-              <Bar dataKey="Completed" fill="#2563EB"/>
+              <Line
+                type="monotone"
+                dataKey="Submitted"
+                stroke="#2563EB"
+                strokeWidth={3}
+                dot={{r:5}}
+              />
 
-              <Bar dataKey="Pending" fill="#F97316"/>
+              <Line
+                type="monotone"
+                dataKey="Pending"
+                stroke="#F97316"
+                strokeWidth={3}
+                dot={{r:5}}
+              />
 
-            </BarChart>
+            </LineChart>
 
           </ResponsiveContainer>
-
-        </div>
-
-      </div>
-
-      {/* Bottom Panels */}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Study Materials */}
-
-        <div className="bg-card rounded-lg border border-border p-6">
-
-          <h2 className="text-base font-medium text-foreground mb-4">
-            Latest Study Materials
-          </h2>
-
-          {materials.map((m:any)=>(
-
-            <div key={m.id} className="py-2 border-b border-border last:border-0">
-
-              <p className="text-sm font-medium text-foreground">
-                {m.course}
-              </p>
-
-              <p className="text-xs text-muted-foreground">
-                {m.title}
-              </p>
-
-            </div>
-
-          ))}
-
-        </div>
-
-        {/* Leave Requests */}
-
-        <div className="bg-card rounded-lg border border-border p-6">
-
-          <h2 className="text-base font-medium text-foreground mb-4">
-            Leave Request Status
-          </h2>
-
-          {leaveRequests.map((l:any)=>(
-
-            <div key={l.id} className="py-2 border-b border-border">
-
-              <p className="text-sm text-foreground">
-                {l.reason}
-              </p>
-
-              <span className={`text-xs px-2 py-1 rounded ${statusColor[l.status]}`}>
-                {l.status}
-              </span>
-
-            </div>
-
-          ))}
-
-        </div>
-
-        {/* Notifications */}
-
-        <div className="bg-card rounded-lg border border-border p-6">
-
-          <h2 className="text-base font-medium text-foreground mb-4">
-            Notification Panel
-          </h2>
-
-          {notifications.map((n:any)=>(
-
-            <div key={n.id} className="py-2 border-b border-border">
-
-              <p className="text-sm text-foreground">
-                {n.message}
-              </p>
-
-            </div>
-
-          ))}
 
         </div>
 

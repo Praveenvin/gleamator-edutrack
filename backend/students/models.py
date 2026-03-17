@@ -6,7 +6,7 @@ class Student(models.Model):
     name = models.CharField(max_length=100)
     usn = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=50)
-    email = models.EmailField()
+    email = models.EmailField(unique=True)
     phone = models.CharField(max_length=15)
     year = models.IntegerField()
 
@@ -39,13 +39,12 @@ class Faculty(models.Model):
 class Course(models.Model):
     course_name = models.CharField(max_length=100)
     course_code = models.CharField(max_length=20, unique=True)
-    faculty = models.ForeignKey(Faculty, on_delete=models.CASCADE)
+    department = models.CharField(max_length=50)
+    faculty = models.ForeignKey(Faculty, on_delete=models.SET_NULL, null=True)
     semester = models.IntegerField()
-    department = models.CharField(max_length=100)
 
     def __str__(self):
         return self.course_name
-
 
 class Attendance(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)
@@ -60,14 +59,70 @@ class Attendance(models.Model):
         return f"{self.student} - {self.course} - {self.date}"
 
 class Assignment(models.Model):
-    course = models.ForeignKey(Course, on_delete=models.CASCADE)
+
     title = models.CharField(max_length=200)
     description = models.TextField()
     due_date = models.DateField()
+
+    file = models.FileField(upload_to="assignments/", null=True, blank=True)
+
+    faculty = models.ManyToManyField(Faculty, blank=True)
+
+    created_by = models.CharField(
+        max_length=20,
+        choices=[
+            ("admin", "Admin"),
+            ("faculty", "Faculty")
+        ],
+        default="admin"
+    )
+
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
         return self.title
+class AssignmentSubmission(models.Model):
+
+    student = models.ForeignKey(
+        Student,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+
+    # ✅ NEW (for faculty submissions)
+    submitted_by = models.CharField(
+        max_length=20,
+        choices=[
+            ("student", "Student"),
+            ("faculty", "Faculty")
+        ],
+        default="student"
+    )
+
+    assignment = models.ForeignKey(Assignment, on_delete=models.CASCADE)
+
+    file = models.FileField(upload_to="submissions/", null=True, blank=True)
+
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ("Submitted","Submitted"),
+            ("Pending","Pending"),
+            ("Late","Late")
+        ],
+        default="Submitted"
+    )
+
+    # ✅ NEW (important for evaluation)
+    marks = models.IntegerField(null=True, blank=True)
+    feedback = models.TextField(blank=True)
+
+    submitted_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.assignment.title} - {self.submitted_by}"
+
 
 class InternalMarks(models.Model):
     student = models.ForeignKey(Student, on_delete=models.CASCADE)

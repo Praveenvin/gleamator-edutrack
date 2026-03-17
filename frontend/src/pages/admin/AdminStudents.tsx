@@ -1,274 +1,466 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { Pencil, Trash2, Plus, X } from "lucide-react";
 
 interface Student {
-  id: number;
-  name: string;
-  usn: string;
-  department: string;
-  email: string;
-  phone: string;
-  year: number;
-  status: string;
+  id:number;
+  name:string;
+  usn:string;
+  department:string;
+  email:string;
+  phone:string;
+  year:number;
 }
 
 const API = "http://127.0.0.1:8000/api/students/";
 
-const AdminStudents = () => {
+const departments = ["AI","CSE","ISE","ECE","MECH"];
 
-  const [students, setStudents] = useState<Student[]>([]);
-  const [search, setSearch] = useState("");
+const deptColors:Record<string,string> = {
+  AI:"bg-purple-100 text-purple-700",
+  CSE:"bg-blue-100 text-blue-700",
+  ISE:"bg-green-100 text-green-700",
+  ECE:"bg-orange-100 text-orange-700",
+  MECH:"bg-gray-200 text-gray-700"
+};
 
+const yearColors:Record<number,string> = {
+  1:"bg-emerald-100 text-emerald-700",
+  2:"bg-blue-100 text-blue-700",
+  3:"bg-purple-100 text-purple-700",
+  4:"bg-orange-100 text-orange-700"
+};
+
+const AdminStudents = ()=>{
+
+  const [students,setStudents] = useState<Student[]>([]);
+  const [search,setSearch] = useState("");
+
+  const [departmentFilter,setDepartmentFilter] = useState("");
+  const [yearFilter,setYearFilter] = useState("");
+
+  const [showModal,setShowModal] = useState(false);
   const [editingStudent,setEditingStudent] = useState<Student | null>(null);
 
-  const [form, setForm] = useState({
-    name: "",
-    usn: "",
-    department: "",
-    email: "",
-    phone: "",
-    year: 1,
-    status: "Active"
+  const [deleteId,setDeleteId] = useState<number | null>(null);
+  const [message,setMessage] = useState<string | null>(null);
+  const [formError,setFormError] = useState<string | null>(null);
+
+  const [form,setForm] = useState({
+    name:"",
+    usn:"",
+    department:"",
+    email:"",
+    phone:"",
+    year:1
   });
 
-  const fetchStudents = async () => {
-    try {
-      const res = await axios.get(API);
-      setStudents(res.data);
-    } catch (error) {
-      console.error("Error fetching students:", error);
-    }
+  const fetchStudents = async ()=>{
+    const res = await axios.get(API);
+    setStudents(res.data);
   };
 
-  useEffect(() => {
+  useEffect(()=>{
     fetchStudents();
-  }, []);
+  },[]);
 
-  const filteredStudents = students.filter((s) =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.usn.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStudents = students.filter((s)=>{
 
-  const handleChange = (e: any) => {
+    const matchesSearch =
+      s.name.toLowerCase().includes(search.toLowerCase()) ||
+      s.usn.toLowerCase().includes(search.toLowerCase());
+
+    const matchesDept =
+      departmentFilter === "" || s.department === departmentFilter;
+
+    const matchesYear =
+      yearFilter === "" || s.year === Number(yearFilter);
+
+    return matchesSearch && matchesDept && matchesYear;
+  });
+
+  const handleChange = (e:any)=>{
     setForm({
       ...form,
       [e.target.name]: e.target.value
     });
   };
 
-  const addStudent = async () => {
-    try {
-      await axios.post(API, form);
-      fetchStudents();
-
-      setForm({
-        name: "",
-        usn: "",
-        department: "",
-        email: "",
-        phone: "",
-        year: 1,
-        status: "Active"
-      });
-
-    } catch (error) {
-      console.error("Error adding student:", error);
-    }
-  };
-
-  const deleteStudent = async (id:number) => {
-
-    if(!confirm("Delete this student?")) return;
-
-    try{
-      await axios.delete(`${API}${id}/`);
-      fetchStudents();
-    }
-    catch(err){
-      console.error(err);
-    }
-
-  };
-
-  const startEdit = (student:Student) => {
-
-    setEditingStudent(student);
-
+  const openAddModal = ()=>{
+    setEditingStudent(null);
+    setFormError(null);
     setForm({
-      name: student.name,
-      usn: student.usn,
-      department: student.department,
-      email: student.email,
-      phone: student.phone,
-      year: student.year,
-      status: student.status
+      name:"",
+      usn:"",
+      department:"",
+      email:"",
+      phone:"",
+      year:1
     });
-
+    setShowModal(true);
   };
 
-  const updateStudent = async () => {
+  const startEdit = (student:Student)=>{
+    setEditingStudent(student);
+    setFormError(null);
+    setForm(student);
+    setShowModal(true);
+  };
 
-    if(!editingStudent) return;
+  const saveStudent = async ()=>{
 
-    try{
+  /* -------- VALIDATION -------- */
 
+  if(
+    !form.name.trim() ||
+    !form.usn.trim() ||
+    !form.department ||
+    !form.email.trim() ||
+    !form.phone.trim() ||
+    !form.year
+  ){
+    setFormError("All fields are mandatory");
+    return;
+  }
+
+  try{
+
+    if(editingStudent){
       await axios.put(`${API}${editingStudent.id}/`,form);
-
-      setEditingStudent(null);
-      fetchStudents();
-
-    }
-    catch(err){
-      console.error(err);
+      setMessage("Student updated successfully");
+    }else{
+      await axios.post(API,form);
+      setMessage("Student added successfully");
     }
 
-  };
+    setShowModal(false);
+    fetchStudents();
+
+  }catch(err:any){
+
+    setFormError(
+      err.response?.data?.error ||
+      "Email or USN already exists"
+    );
+
+  }
+
+};
+
+  const confirmDelete = async ()=>{
+
+  try{
+
+    if(!deleteId) return;
+
+    await axios.delete(`${API}${deleteId}/`);
+
+    setDeleteId(null);
+    fetchStudents();
+
+    setMessage("Student deleted successfully");
+
+  }catch{
+
+    setMessage("Error deleting student");
+
+  }
+
+};
 
   return (
-    <AdminDashboardLayout>
+  <AdminDashboardLayout>
 
-      <h1 className="text-2xl font-semibold text-foreground mb-6">
-        Students Management
-      </h1>
+    <h1 className="text-2xl font-semibold text-foreground mb-6">
+      Students Management
+    </h1>
+{message && (
+  <div className={`mb-4 px-4 py-2 rounded-lg text-sm flex justify-between items-center ${
+    message.includes("deleted")
+      ? "bg-red-100 text-red-700"
+      : "bg-green-100 text-green-700"
+  }`}>
+    {message}
+    <button onClick={()=>setMessage(null)}>✕</button>
+  </div>
+)}
 
-      <div className="mb-4">
-        <input
-          placeholder="Search by name or USN..."
-          className="border border-border px-3 py-2 rounded text-sm w-full"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
+    {/* Search + Filters */}
 
-      <div className="bg-card rounded-lg border border-border p-6 mb-6">
+<div className="flex flex-wrap items-center gap-4 mb-6">
 
-        <div className="grid grid-cols-3 gap-3">
+  <input
+    placeholder="Search students..."
+    className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+    value={search}
+    onChange={(e)=>setSearch(e.target.value)}
+  />
 
-          <input name="name" placeholder="Name"
-            value={form.name}
-            onChange={handleChange}
-            className="border border-border px-3 py-2 rounded text-sm" />
+  <select
+    value={departmentFilter}
+    onChange={(e)=>setDepartmentFilter(e.target.value)}
+    className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+  >
+    <option value="">All Departments</option>
+    {departments.map((d)=>(
+      <option key={d} value={d}>{d}</option>
+    ))}
+  </select>
 
-          <input name="usn" placeholder="USN"
-            value={form.usn}
-            onChange={handleChange}
-            className="border border-border px-3 py-2 rounded text-sm" />
+  <select
+    value={yearFilter}
+    onChange={(e)=>setYearFilter(e.target.value)}
+    className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+  >
+    <option value="">All Years</option>
+    <option value="1">1st Year</option>
+    <option value="2">2nd Year</option>
+    <option value="3">3rd Year</option>
+    <option value="4">4th Year</option>
+  </select>
 
-          <input name="department" placeholder="Department"
-            value={form.department}
-            onChange={handleChange}
-            className="border border-border px-3 py-2 rounded text-sm" />
+  <button
+    onClick={openAddModal}
+    className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
+  >
+    <Plus size={18}/>
+    Add Student
+  </button>
 
-          <input name="email" placeholder="Email"
-            value={form.email}
-            onChange={handleChange}
-            className="border border-border px-3 py-2 rounded text-sm" />
+</div>
 
-          <input name="phone" placeholder="Phone"
-            value={form.phone}
-            onChange={handleChange}
-            className="border border-border px-3 py-2 rounded text-sm" />
+    {/* Table */}
 
-          <input name="year" type="number" placeholder="Year"
-            value={form.year}
-            onChange={handleChange}
-            className="border border-border px-3 py-2 rounded text-sm" />
+    <div className="bg-card rounded-lg border border-border overflow-hidden">
+
+      <table className="w-full text-sm">
+
+        <thead className="bg-secondary/50">
+
+          <tr>
+            {["ID","USN","Name","Department","Year","Email","Phone","Actions"].map((h)=>(
+              <th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">
+                {h}
+              </th>
+            ))}
+          </tr>
+
+        </thead>
+
+        <tbody>
+
+          {filteredStudents.map((s)=>(
+            <tr key={s.id} className="border-t border-border hover:bg-secondary/40 transition">
+
+              <td className="px-4 py-3 text-primary">{s.id}</td>
+
+              <td className="px-4 py-3">{s.usn}</td>
+
+              <td className="px-4 py-3 font-medium">
+                {s.name}
+              </td>
+
+              <td className="px-4 py-3">
+
+                <span
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${deptColors[s.department]}`}
+                >
+                  {s.department}
+                </span>
+
+              </td>
+
+              <td className="px-4 py-3">
+
+                <span
+                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${yearColors[s.year]}`}
+                >
+                  Year {s.year}
+                </span>
+
+              </td>
+
+              <td className="px-4 py-3">{s.email}</td>
+
+              <td className="px-4 py-3">{s.phone}</td>
+
+              <td className="px-4 py-3 flex gap-2">
+
+                <button
+                  onClick={()=>startEdit(s)}
+                  className="p-1.5 rounded text-blue-600 hover:bg-blue-100 hover:scale-110 transition"
+                >
+                  <Pencil size={16}/>
+                </button>
+
+                <button
+                  onClick={()=>setDeleteId(s.id)}
+                  className="p-1.5 rounded text-red-600 hover:bg-red-100 hover:scale-110 transition"
+                >
+                  <Trash2 size={16}/>
+                </button>
+
+              </td>
+
+            </tr>
+          ))}
+
+        </tbody>
+
+      </table>
+
+    </div>
+
+    {/* Add/Edit Modal */}
+
+    {showModal && (
+
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+
+        <div className="bg-white rounded-xl shadow-lg p-6 w-[480px]">
+
+          <div className="flex justify-between items-center mb-5">
+
+            <h2 className="text-lg font-semibold">
+              {editingStudent ? "Edit Student" : "Add Student"}
+            </h2>
+
+            <button onClick={()=>setShowModal(false)}>
+              <X size={18}/>
+            </button>
+
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            {formError && (
+  <div className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+    {formError}
+  </div>
+)}
+            <input
+              name="name"
+              placeholder="Name"
+              value={form.name}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg text-sm"
+            />
+
+            <input
+              name="usn"
+              placeholder="USN"
+              value={form.usn}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg text-sm"
+            />
+
+            <select
+              name="department"
+              value={form.department}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg text-sm"
+            >
+              <option value="">Select Department</option>
+              {departments.map((d)=>(
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            <select
+              name="year"
+              value={form.year}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg text-sm"
+            >
+              <option value={1}>1st Year</option>
+              <option value={2}>2nd Year</option>
+              <option value={3}>3rd Year</option>
+              <option value={4}>4th Year</option>
+            </select>
+
+            <input
+              name="email"
+              placeholder="Email"
+              value={form.email}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg text-sm"
+            />
+
+            <input
+              name="phone"
+              placeholder="Phone"
+              value={form.phone}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg text-sm"
+            />
+
+          </div>
+
+          <div className="flex justify-end gap-3 mt-6">
+
+            <button
+              onClick={()=>setShowModal(false)}
+              className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={saveStudent}
+              className="px-4 py-2 text-sm bg-primary text-white rounded-lg shadow hover:bg-primary/90"
+            >
+              {editingStudent ? "Update Student" : "Add Student"}
+            </button>
+
+          </div>
 
         </div>
 
-        {!editingStudent ? (
+      </div>
 
-          <button
-            onClick={addStudent}
-            className="mt-4 bg-primary text-white px-4 py-2 rounded text-sm"
-          >
-            Add Student
-          </button>
+    )}
 
-        ) : (
+    {/* Delete Confirmation */}
 
-          <button
-            onClick={updateStudent}
-            className="mt-4 bg-primary text-white px-4 py-2 rounded text-sm"
-          >
-            Update Student
-          </button>
+    {deleteId && (
 
-        )}
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+
+        <div className="bg-white rounded-xl p-6 w-[340px] text-center shadow-lg">
+
+          <h2 className="text-lg font-semibold mb-2">
+            Delete Student
+          </h2>
+
+          <p className="text-sm text-muted-foreground mb-5">
+            Are you sure you want to delete this student?
+          </p>
+
+          <div className="flex justify-center gap-4">
+
+            <button
+              onClick={()=>setDeleteId(null)}
+              className="px-4 py-2 border rounded-lg text-sm"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={confirmDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+            >
+              Delete
+            </button>
+
+          </div>
+
+        </div>
 
       </div>
 
-      <div className="bg-card rounded-lg border border-border p-6">
+    )}
 
-        <table className="w-full text-sm">
-
-          <thead>
-
-            <tr className="border-b border-border">
-
-              {["ID","USN","Name","Department","Year","Email","Status","Actions"].map((h)=>(
-                <th key={h} className="text-left py-2 text-muted-foreground font-medium">
-                  {h}
-                </th>
-              ))}
-
-            </tr>
-
-          </thead>
-
-          <tbody>
-
-            {filteredStudents.map((s)=>(
-              <tr key={s.id} className="border-b border-border last:border-0">
-
-                <td className="py-2.5 text-primary">{s.id}</td>
-                <td className="py-2.5 text-foreground">{s.usn}</td>
-                <td className="py-2.5 text-foreground">{s.name}</td>
-                <td className="py-2.5 text-muted-foreground">{s.department}</td>
-                <td className="py-2.5 text-muted-foreground">{s.year}</td>
-                <td className="py-2.5 text-muted-foreground">{s.email}</td>
-
-                <td className="py-2.5">
-                  <span
-                    className={`text-xs font-medium px-2 py-1 rounded-full ${
-                      s.status === "Active"
-                        ? "text-success bg-success/10"
-                        : "text-destructive bg-destructive/10"
-                    }`}
-                  >
-                    {s.status}
-                  </span>
-                </td>
-
-                <td className="py-2.5 flex gap-2">
-
-                  <button
-                    onClick={()=>startEdit(s)}
-                    className="text-blue-500 text-xs"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={()=>deleteStudent(s.id)}
-                    className="text-red-500 text-xs"
-                  >
-                    Delete
-                  </button>
-
-                </td>
-
-              </tr>
-            ))}
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-    </AdminDashboardLayout>
+  </AdminDashboardLayout>
   );
 };
 

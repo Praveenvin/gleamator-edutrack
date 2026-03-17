@@ -3,9 +3,11 @@ from .views import (
     login_user,
     students_api,
     faculty_api,
+    faculty_detail,
     courses_api,
     attendance_api,
     assignments_api,
+    submit_assignment,
     marks_api,
     materials_api,
     faculty_profile,
@@ -19,19 +21,24 @@ from .views import (
     timetable_api,
     student_activity_api,
     student_activity_detail,
+    course_detail,
+    material_detail,
+    assignment_detail,
 
 )
 
 urlpatterns = [
     path('login/', login_user),
-
     path('students/', students_api),
     path('faculty/', faculty_api),
+    path('faculty/<int:id>/', faculty_detail),
     path('courses/', courses_api),
     path('attendance/', attendance_api),
     path('assignments/', assignments_api),
+    path("assignments/<int:id>/",assignment_detail),
     path('marks/', marks_api),
     path("materials/", materials_api),
+    path("materials/<int:id>/", material_detail),
     path("faculty/profile/", faculty_profile),
     path("notifications/", notifications_api),
     path("settings/", settings_api),
@@ -43,4 +50,6 @@ urlpatterns = [
     path("timetable/",timetable_api),
     path("student-activities/",student_activity_api),
     path("student-activities/<int:id>/",student_activity_detail),
+    path("submit-assignment/", submit_assignment),
+    path('courses/<int:id>/', course_detail),
 ]

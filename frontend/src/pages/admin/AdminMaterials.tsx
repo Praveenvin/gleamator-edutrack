@@ -1,5 +1,5 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
-import { FileText } from "lucide-react";
+import { Pencil, Trash2, Plus, X, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 import axios from "axios";
 
@@ -9,255 +9,445 @@ interface Material {
   course: number;
   course_name?: string;
   file?: string;
-  downloads: number;
+}
+
+interface Course {
+  id:number;
+  course_name:string;
 }
 
 const API = "http://127.0.0.1:8000/api/materials/";
+const COURSE_API = "http://127.0.0.1:8000/api/courses/";
+const FILE_BASE = "http://127.0.0.1:8000";
 
-const AdminMaterials = () => {
-
-  const [materials, setMaterials] = useState<Material[]>([]);
-  const [search, setSearch] = useState("");
-
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
-
-  const [form, setForm] = useState({
-    id: undefined,
-    title: "",
-    course: 1,
-    downloads: 0
-  });
-
-  const fetchMaterials = async () => {
-    try {
-      const res = await axios.get(API);
-      setMaterials(res.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  useEffect(() => {
-    fetchMaterials();
-  }, []);
-
-  const filteredMaterials = materials.filter((m) =>
-    m.title.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const handleChange = (e: any) => {
-    setForm({
-      ...form,
-      [e.target.name]: e.target.value
-    });
-  };
-
-  const openAdd = () => {
-    setEditing(false);
-    setForm({
-      id: undefined,
-      title: "",
-      course: 1,
-      downloads: 0
-    });
-    setShowModal(true);
-  };
-
-  const openEdit = (m: Material) => {
-    setEditing(true);
-    setForm({
-      id: m.id,
-      title: m.title,
-      course: m.course,
-      downloads: m.downloads
-    });
-    setShowModal(true);
-  };
-
-  const saveMaterial = async () => {
-
-    try {
-
-      if (editing) {
-        await axios.put(`${API}${form.id}/`, form);
-      } else {
-        await axios.post(API, form);
-      }
-
-      setShowModal(false);
-      fetchMaterials();
-
-    } catch (error) {
-      console.error(error);
-    }
-
-  };
-
-  const deleteMaterial = async (id?: number) => {
-
-    if (!confirm("Delete this material?")) return;
-
-    try {
-      await axios.delete(`${API}${id}/`);
-      fetchMaterials();
-    } catch (error) {
-      console.error(error);
-    }
-
-  };
-
-  return (
-    <AdminDashboardLayout>
-
-      <h1 className="text-2xl font-semibold text-foreground mb-6">
-        Study Materials Management
-      </h1>
+const AdminMaterials = ()=>{
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+const [materials,setMaterials] = useState<Material[]>([]);
+const [courses,setCourses] = useState<Course[]>([]);
+const [search,setSearch] = useState("");
 
-        {[
-          { label: "Total Materials", value: materials.length },
-          { label: "Total Downloads", value: materials.reduce((a,b)=>a+b.downloads,0) },
-          { label: "Storage Used", value: "—" },
-        ].map(s => (
-          <div key={s.label} className="bg-card rounded-lg border border-border p-6">
-            <p className="text-sm text-muted-foreground">{s.label}</p>
-            <p className="text-3xl font-bold text-foreground mt-1">{s.value}</p>
-          </div>
-        ))}
+const [showModal,setShowModal] = useState(false);
+const [viewModal,setViewModal] = useState(false);
 
-      </div>
+const [editingMaterial,setEditingMaterial] = useState<Material | null>(null);
+const [selected,setSelected] = useState<Material | null>(null);
 
-      <div className="bg-card rounded-lg border border-border p-6">
+const [deleteId,setDeleteId] = useState<number | null>(null);
 
-        <div className="flex justify-between mb-4">
+const [message,setMessage] = useState<string | null>(null);
+const [formError,setFormError] = useState<string | null>(null);
 
-          <input
-            placeholder="Search material..."
-            value={search}
-            onChange={(e)=>setSearch(e.target.value)}
-            className="border border-border px-3 py-2 rounded text-sm"
-          />
+const [file,setFile] = useState<File | null>(null);
 
-          <button
-            onClick={openAdd}
-            className="bg-primary text-white px-4 py-2 rounded text-sm"
-          >
-            Add Material
-          </button>
+const [form,setForm] = useState({
+title:"",
+course:1,
+});
 
-        </div>
+/* FETCH */
 
-        <h2 className="text-lg font-semibold text-foreground mb-4">
-          Uploaded Materials
-        </h2>
+const fetchMaterials = async ()=>{
+const res = await axios.get(API);
+setMaterials(res.data);
+};
 
-        <table className="w-full text-sm">
+const fetchCourses = async ()=>{
+const res = await axios.get(COURSE_API);
+setCourses(res.data);
+};
 
-          <thead>
-            <tr className="border-b border-border">
+useEffect(()=>{
+fetchMaterials();
+fetchCourses();
+},[]);
 
-              {["Title","Course","Downloads","Actions"].map(h => (
-                <th key={h} className="text-left py-2 text-muted-foreground font-medium">
-                  {h}
-                </th>
-              ))}
+/* FILTER */
 
-            </tr>
-          </thead>
+const filtered = materials.filter(m =>
+m.title.toLowerCase().includes(search.toLowerCase())
+);
 
-          <tbody>
+/* HANDLERS */
 
-            {filteredMaterials.map(m => (
+const handleChange = (e:any)=>{
+setForm({...form,[e.target.name]:e.target.value});
+};
+
+const openAdd = ()=>{
+setEditingMaterial(null);
+setFormError(null);
+setFile(null);
+setForm({title:"",course:1});
+setShowModal(true);
+};
 
-              <tr key={m.id} className="border-b border-border last:border-0">
+const openEdit = (m:Material)=>{
+setEditingMaterial(m);
+setFormError(null);
+setFile(null);
+setForm({
+title:m.title,
+course:m.course
+});
+setShowModal(true);
+};
+
+/* SAVE */
 
-                <td className="py-2.5 text-foreground flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-primary" />
-                  {m.title}
-                </td>
+const saveMaterial = async ()=>{
 
-                <td className="py-2.5 text-muted-foreground">
-                  {m.course_name || m.course}
-                </td>
+if(!form.title){
+setFormError("All fields are required");
+return;
+}
 
-                <td className="py-2.5 text-foreground">
-                  {m.downloads}
-                </td>
+try{
+
+const formData = new FormData();
 
-                <td className="py-2.5 flex gap-2">
-
-                  <button
-                    onClick={()=>openEdit(m)}
-                    className="text-blue-500 text-xs"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={()=>deleteMaterial(m.id)}
-                    className="text-red-500 text-xs"
-                  >
-                    Delete
-                  </button>
-
-                </td>
-
-              </tr>
-
-            ))}
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-      {showModal && (
-
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-
-          <div className="bg-white rounded-lg p-6 w-96">
-
-            <h2 className="text-lg font-semibold mb-4">
-              {editing ? "Edit Material" : "Add Material"}
-            </h2>
-
-            <div className="flex flex-col gap-3">
-
-              <input name="title" placeholder="Title" value={form.title} onChange={handleChange} className="border p-2 rounded"/>
-              <input name="course" placeholder="Course ID" value={form.course} onChange={handleChange} className="border p-2 rounded"/>
-              <input name="downloads" placeholder="Downloads" value={form.downloads} onChange={handleChange} className="border p-2 rounded"/>
-
-            </div>
-
-            <div className="flex justify-end gap-3 mt-4">
-
-              <button
-                onClick={()=>setShowModal(false)}
-                className="px-3 py-2 border rounded"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={saveMaterial}
-                className="bg-primary text-white px-4 py-2 rounded"
-              >
-                Save
-              </button>
-
-            </div>
-
-          </div>
-
-        </div>
-
-      )}
-
-    </AdminDashboardLayout>
-  );
+formData.append("title",form.title);
+formData.append("course",String(form.course));
+
+if(file){
+formData.append("file",file);
+}
+
+if(editingMaterial){
+await axios.put(`${API}${editingMaterial.id}/`,formData);
+setMessage("Material updated successfully");
+}else{
+await axios.post(API,formData);
+setMessage("Material added successfully");
+}
+
+setShowModal(false);
+fetchMaterials();
+
+}catch(err:any){
+setFormError(err.response?.data?.error || "Error saving material");
+}
+};
+
+/* DELETE */
+
+const confirmDelete = async ()=>{
+if(!deleteId) return;
+
+await axios.delete(`${API}${deleteId}/`);
+setDeleteId(null);
+fetchMaterials();
+setMessage("Material deleted successfully");
+};
+
+return(
+
+<AdminDashboardLayout>
+
+<h1 className="text-2xl font-semibold text-foreground mb-6">
+Study Materials Management
+</h1>
+
+{/* MESSAGE */}
+{message && (
+<div className="mb-4 px-4 py-2 rounded-lg text-sm flex justify-between items-center bg-green-100 text-green-700">
+{message}
+<button onClick={()=>setMessage(null)}>✕</button>
+</div>
+)}
+
+{/* FILTER */}
+<div className="flex flex-wrap items-center gap-4 mb-6">
+
+<input
+placeholder="Search materials..."
+value={search}
+onChange={(e)=>setSearch(e.target.value)}
+className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+/>
+
+<button
+onClick={openAdd}
+className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
+>
+<Plus size={18}/>
+Add Material
+</button>
+
+</div>
+
+{/* TABLE */}
+<div className="bg-card rounded-lg border border-border overflow-hidden">
+
+<table className="w-full text-sm">
+
+<thead className="bg-secondary/50">
+<tr>
+{["Title","Course","File","Actions"].map(h=>(
+<th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">
+{h}
+</th>
+))}
+</tr>
+</thead>
+
+<tbody>
+{filtered.map(m=>(
+
+<tr key={m.id} className="border-t border-border hover:bg-secondary/40 transition">
+
+<td className="px-4 py-3 flex items-center gap-2 font-medium">
+<FileText size={16}/>
+{m.title}
+</td>
+
+<td className="px-4 py-3">
+{m.course_name || m.course}
+</td>
+
+<td className="px-4 py-3">
+{m.file && (
+<button
+onClick={()=>{
+setSelected(m);
+setViewModal(true);
+}}
+className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition"
+>
+View File
+</button>
+)}
+</td>
+
+<td className="px-4 py-3 flex gap-2">
+
+<button
+onClick={()=>openEdit(m)}
+className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition"
+>
+<Pencil size={16}/>
+</button>
+
+<button
+onClick={()=>setDeleteId(m.id || null)}
+className="p-1.5 rounded text-red-600 hover:bg-red-100 transition"
+>
+<Trash2 size={16}/>
+</button>
+
+</td>
+
+</tr>
+
+))}
+</tbody>
+
+</table>
+
+</div>
+
+{/* VIEW MODAL */}
+{viewModal && selected && (
+<div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+
+<div className="bg-white p-6 rounded-xl w-[520px] shadow-lg">
+
+<div className="flex justify-between items-center mb-5">
+<h2 className="text-lg font-semibold">Material Details</h2>
+<button onClick={()=>setViewModal(false)}>
+<X size={18}/>
+</button>
+</div>
+
+<div className="space-y-4 text-sm">
+
+<p><b>Title:</b> {selected.title}</p>
+<p><b>Course:</b> {selected.course_name || selected.course}</p>
+
+{selected.file && (
+<div className="bg-secondary/40 border border-border rounded-lg p-4 flex justify-between items-center">
+
+<div>
+<p className="text-sm font-medium">Attachment</p>
+<p className="text-xs text-muted-foreground">Preview or download</p>
+</div>
+
+<div className="flex gap-2">
+
+<a
+href={`${FILE_BASE}${selected.file}`}
+target="_blank"
+className="px-3 py-1.5 text-xs rounded bg-primary/10 text-primary hover:bg-primary/20 transition"
+>
+Preview
+</a>
+
+<a
+href={`${FILE_BASE}${selected.file}`}
+download
+className="px-3 py-1.5 text-xs rounded bg-primary text-white hover:bg-primary/90 transition"
+>
+Download
+</a>
+
+</div>
+
+</div>
+)}
+
+</div>
+
+<div className="flex justify-end mt-6">
+<button
+onClick={()=>setViewModal(false)}
+className="px-4 py-2 border rounded-lg text-sm"
+>
+Close
+</button>
+</div>
+
+</div>
+</div>
+)}
+
+{/* ADD / EDIT MODAL */}
+{showModal && (
+<div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+
+<div className="bg-white p-6 rounded-xl w-[420px]">
+
+<div className="flex justify-between mb-4">
+<h2 className="font-semibold">
+{editingMaterial ? "Edit Material" : "Add Material"}
+</h2>
+<button onClick={()=>setShowModal(false)}>
+<X size={18}/>
+</button>
+</div>
+
+{formError && (
+<div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+{formError}
+</div>
+)}
+
+<div className="flex flex-col gap-3">
+
+<input
+name="title"
+placeholder="Title"
+value={form.title}
+onChange={handleChange}
+className="border px-3 py-2 rounded-lg text-sm"
+/>
+
+<select
+name="course"
+value={form.course}
+onChange={handleChange}
+className="border px-3 py-2 rounded-lg text-sm"
+>
+{courses.map(c=>(
+<option key={c.id} value={c.id}>{c.course_name}</option>
+))}
+</select>
+
+{/* UPLOAD UI */}
+<div className="border border-dashed border-border rounded-xl p-6 text-center hover:border-primary/50 transition">
+
+<input
+type="file"
+onChange={(e)=>setFile(e.target.files?.[0] || null)}
+className="hidden"
+id="upload"
+/>
+
+{!file ? (
+<label htmlFor="upload" className="cursor-pointer flex flex-col items-center gap-3">
+
+<div className="w-12 h-12 flex items-center justify-center rounded-full bg-primary/10 text-primary">
+↑
+</div>
+
+<p className="text-sm">Upload file</p>
+
+</label>
+) : (
+<div className="flex justify-between items-center bg-secondary/40 px-4 py-3 rounded-lg">
+
+<div>
+<p className="text-sm font-medium">{file.name}</p>
+<p className="text-xs text-muted-foreground">{(file.size/1024).toFixed(1)} KB</p>
+</div>
+
+<div className="flex gap-2">
+
+<button
+onClick={()=>{
+const url = URL.createObjectURL(file);
+window.open(url);
+}}
+className="px-3 py-1 text-xs bg-primary/10 text-primary rounded"
+>
+Preview
+</button>
+
+<button
+onClick={()=>setFile(null)}
+className="px-3 py-1 text-xs text-red-600"
+>
+Remove
+</button>
+
+</div>
+
+</div>
+)}
+
+</div>
+
+</div>
+
+<div className="flex justify-end gap-3 mt-5">
+<button onClick={()=>setShowModal(false)} className="px-4 py-2 border rounded-lg text-sm">
+Cancel
+</button>
+
+<button onClick={saveMaterial} className="px-4 py-2 bg-primary text-white rounded-lg text-sm">
+Save
+</button>
+</div>
+
+</div>
+</div>
+)}
+
+{/* DELETE */}
+{deleteId && (
+<div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+
+<div className="bg-white p-6 rounded-xl w-[320px] text-center">
+
+<h2 className="font-semibold mb-2">Delete Material</h2>
+<p className="text-sm text-muted-foreground mb-4">Are you sure?</p>
+
+<div className="flex justify-center gap-4">
+
+<button onClick={()=>setDeleteId(null)} className="px-4 py-2 border rounded-lg text-sm">
+Cancel
+</button>
+
+<button onClick={confirmDelete} className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm">
+Delete
+</button>
+
+</div>
+
+</div>
+</div>
+)}
+
+</AdminDashboardLayout>
+);
 };
 
 export default AdminMaterials;

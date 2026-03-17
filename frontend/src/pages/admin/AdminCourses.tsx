@@ -1,283 +1,448 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import { Pencil, Trash2, Plus, X } from "lucide-react";
 
 interface Course {
-  id?: number;
-  course_name: string;
-  course_code: string;
-  department: string;
-  faculty: number;
-  semester: number;
+  id?: number
+  course_name: string
+  course_code: string
+  department: string
+  faculty: number | ""
+  faculty_name?: string
+  semester: number | ""
 }
 
-const API = "http://127.0.0.1:8000/api/courses/";
+const API = "http://127.0.0.1:8000/api/courses/"
+const FACULTY_API = "http://127.0.0.1:8000/api/faculty/"
 
-const AdminCourses = () => {
+const departments = ["AI","CSE","ISE","ECE","MECH"]
 
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [search, setSearch] = useState("");
+const deptColors: Record<string,string> = {
+  AI:"bg-purple-100 text-purple-700",
+  CSE:"bg-blue-100 text-blue-700",
+  ISE:"bg-green-100 text-green-700",
+  ECE:"bg-orange-100 text-orange-700",
+  MECH:"bg-gray-200 text-gray-700"
+}
 
-  const [showModal, setShowModal] = useState(false);
-  const [editing, setEditing] = useState(false);
+const AdminCourses = ()=>{
 
-  const [form, setForm] = useState<Course>({
-    course_name: "",
-    course_code: "",
-    department: "",
-    faculty: 1,
-    semester: 1
-  });
+  const [courses,setCourses] = useState<Course[]>([])
+  const [facultyList,setFacultyList] = useState<any[]>([])
 
-  const fetchCourses = async () => {
-    try {
-      const res = await axios.get(API);
-      setCourses(res.data);
-    } catch (error) {
-      console.error(error);
+  const [search,setSearch] = useState("")
+  const [departmentFilter,setDepartmentFilter] = useState("")
+
+  const [showModal,setShowModal] = useState(false)
+  const [editing,setEditing] = useState(false)
+
+  const [deleteId,setDeleteId] = useState<number | null>(null)
+
+  const [message,setMessage] = useState<string | null>(null)
+  const [formError,setFormError] = useState<string | null>(null)
+
+  const [form,setForm] = useState<Course>({
+    course_name:"",
+    course_code:"",
+    department:"",
+    faculty:"",
+    semester:""
+  })
+
+  const fetchCourses = async ()=>{
+    const res = await axios.get(API)
+    setCourses(res.data)
+  }
+
+  const fetchFaculty = async ()=>{
+    const res = await axios.get(FACULTY_API)
+    setFacultyList(res.data)
+  }
+
+  useEffect(()=>{
+    fetchCourses()
+    fetchFaculty()
+  },[])
+
+  const filteredCourses = courses.filter((c)=>{
+
+    const matchSearch =
+      c.course_name.toLowerCase().includes(search.toLowerCase()) ||
+      c.course_code.toLowerCase().includes(search.toLowerCase())
+
+    const matchDept =
+      departmentFilter === "" || c.department === departmentFilter
+
+    return matchSearch && matchDept
+
+  })
+
+  const handleChange = (e:any)=>{
+
+    let value = e.target.value
+
+    if(e.target.name === "course_code"){
+      value = value.toUpperCase()
     }
-  };
 
-  useEffect(() => {
-    fetchCourses();
-  }, []);
-
-  const filteredCourses = courses.filter((c) =>
-    c.course_name.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const handleChange = (e: any) => {
     setForm({
       ...form,
-      [e.target.name]: e.target.value
-    });
-  };
+      [e.target.name]: value
+    })
 
-  const openAdd = () => {
-    setEditing(false);
+  }
+
+  const openAdd = ()=>{
+    setEditing(false)
+    setFormError(null)
+
     setForm({
-      course_name: "",
-      course_code: "",
-      department: "",
-      faculty: 1,
-      semester: 1
-    });
-    setShowModal(true);
-  };
+      course_name:"",
+      course_code:"",
+      department:"",
+      faculty:"",
+      semester:""
+    })
 
-  const openEdit = (course: Course) => {
-    setEditing(true);
-    setForm(course);
-    setShowModal(true);
-  };
+    setShowModal(true)
+  }
 
-  const saveCourse = async () => {
+  const openEdit = (c:Course)=>{
+    setEditing(true)
+    setFormError(null)
+    setForm(c)
+    setShowModal(true)
+  }
 
-    try {
+  const saveCourse = async ()=>{
 
-      if (editing) {
-        await axios.put(`${API}${form.id}/`, form);
+    if(
+      !form.course_name ||
+      !form.course_code ||
+      !form.department ||
+      !form.faculty ||
+      !form.semester
+    ){
+      setFormError("All fields are mandatory")
+      return
+    }
+
+    try{
+
+      if(editing){
+        await axios.put(`${API}${form.id}/`,form)
+        setMessage("Course updated successfully")
       } else {
-        await axios.post(API, form);
+        await axios.post(API,form)
+        setMessage("Course added successfully")
       }
 
-      setShowModal(false);
-      fetchCourses();
+      setShowModal(false)
+      fetchCourses()
 
-    } catch (error) {
-      console.error(error);
+    }catch(err:any){
+
+      setFormError(
+        err.response?.data?.error ||
+        "Course code already exists"
+      )
+
     }
 
-  };
+  }
 
-  const deleteCourse = async (id?: number) => {
+  const confirmDelete = async ()=>{
 
-    if (!confirm("Delete this course?")) return;
+    if(!deleteId) return
 
-    try {
-      await axios.delete(`${API}${id}/`);
-      fetchCourses();
-    } catch (error) {
-      console.error(error);
-    }
+    await axios.delete(`${API}${deleteId}/`)
 
-  };
+    setDeleteId(null)
+
+    fetchCourses()
+
+    setMessage("Course deleted successfully")
+
+  }
 
   return (
-    <AdminDashboardLayout>
+  <AdminDashboardLayout>
 
-      <h1 className="text-2xl font-semibold text-foreground mb-6">
-        Courses Management
-      </h1>
+    <h1 className="text-2xl font-semibold text-foreground mb-6">
+      Courses Management
+    </h1>
 
-      <div className="bg-card rounded-lg border border-border p-6">
+    {message && (
+      <div className={`mb-4 px-4 py-2 rounded-lg text-sm flex justify-between items-center ${
+        message.includes("deleted")
+          ? "bg-red-100 text-red-700"
+          : "bg-green-100 text-green-700"
+      }`}>
+        {message}
+        <button onClick={()=>setMessage(null)}>✕</button>
+      </div>
+    )}
 
-        <div className="flex justify-between mb-4">
+    {/* Search + Filters */}
 
-          <input
-            placeholder="Search course..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="border border-border px-3 py-2 rounded text-sm"
-          />
+    <div className="flex flex-wrap items-center gap-4 mb-6">
 
-          <button
-            onClick={openAdd}
-            className="bg-primary text-white px-4 py-2 rounded text-sm"
-          >
-            Add Course
-          </button>
+      <input
+        placeholder="Search courses..."
+        className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+        value={search}
+        onChange={(e)=>setSearch(e.target.value)}
+      />
 
-        </div>
+      <select
+        value={departmentFilter}
+        onChange={(e)=>setDepartmentFilter(e.target.value)}
+        className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+      >
+        <option value="">All Departments</option>
+        {departments.map(d=>(
+          <option key={d} value={d}>{d}</option>
+        ))}
+      </select>
 
-        <table className="w-full text-sm">
+      <button
+        onClick={openAdd}
+        className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
+      >
+        <Plus size={18}/>
+        Add Course
+      </button>
 
-          <thead>
-            <tr className="border-b border-border">
+    </div>
 
-              {["Code", "Course Name", "Dept", "Faculty", "Students", "Actions"].map(h => (
-                <th key={h} className="text-left py-2 text-muted-foreground font-medium">
-                  {h}
-                </th>
-              ))}
+    {/* Table */}
+
+    <div className="bg-card rounded-lg border border-border overflow-hidden">
+
+      <table className="w-full text-sm">
+
+        <thead className="bg-secondary/50">
+          <tr>
+            {["Code","Course Name","Department","Faculty","Semester","Actions"].map(h=>(
+              <th key={h} className="px-4 py-3 text-left text-muted-foreground font-medium">
+                {h}
+              </th>
+            ))}
+          </tr>
+        </thead>
+
+        <tbody>
+
+          {filteredCourses.map(c=>(
+            <tr key={c.id} className="border-t border-border hover:bg-secondary/40 transition">
+
+              <td className="px-4 py-3 font-mono-data text-primary">
+                {c.course_code}
+              </td>
+
+              <td className="px-4 py-3 font-medium">
+                {c.course_name}
+              </td>
+
+              <td className="px-4 py-3">
+                <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${deptColors[c.department]}`}>
+                  {c.department}
+                </span>
+              </td>
+
+              <td className="px-4 py-3">
+                {c.faculty_name}
+              </td>
+
+              <td className="px-4 py-3">
+                Sem {c.semester}
+              </td>
+
+              <td className="px-4 py-3 flex gap-2">
+
+                <button
+                  onClick={()=>openEdit(c)}
+                  className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition"
+                >
+                  <Pencil size={16}/>
+                </button>
+
+                <button
+                  onClick={()=>setDeleteId(c.id || null)}
+                  className="p-1.5 rounded text-red-600 hover:bg-red-100 transition"
+                >
+                  <Trash2 size={16}/>
+                </button>
+
+              </td>
 
             </tr>
-          </thead>
+          ))}
 
-          <tbody>
+        </tbody>
 
-            {filteredCourses.map(c => (
+      </table>
 
-              <tr key={c.course_code} className="border-b border-border last:border-0">
+    </div>
 
-                <td className="py-2.5 font-mono-data text-primary">
-                  {c.course_code}
-                </td>
+    {/* Add / Edit Modal */}
 
-                <td className="py-2.5 text-foreground">
-                  {c.course_name}
-                </td>
+    {showModal && (
 
-                <td className="py-2.5 text-muted-foreground">
-                  {c.department}
-                </td>
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
 
-                <td className="py-2.5 text-muted-foreground">
-                  {c.faculty}
-                </td>
+        <div className="bg-white p-6 rounded-xl w-[420px]">
 
-                <td className="py-2.5 font-mono-data text-foreground">
-                  —
-                </td>
+          <div className="flex justify-between items-center mb-4">
 
-                <td className="py-2.5 flex gap-2">
-
-                  <button
-                    onClick={() => openEdit(c)}
-                    className="text-blue-500 text-xs"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={() => deleteCourse(c.id)}
-                    className="text-red-500 text-xs"
-                  >
-                    Delete
-                  </button>
-
-                </td>
-
-              </tr>
-
-            ))}
-
-          </tbody>
-
-        </table>
-
-      </div>
-
-      {showModal && (
-
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-
-          <div className="bg-white rounded-lg p-6 w-96">
-
-            <h2 className="text-lg font-semibold mb-4">
+            <h2 className="text-lg font-semibold">
               {editing ? "Edit Course" : "Add Course"}
             </h2>
 
-            <div className="flex flex-col gap-3">
+            <button onClick={()=>setShowModal(false)}>
+              <X size={18}/>
+            </button>
 
-              <input
-                name="course_code"
-                placeholder="Course Code"
-                value={form.course_code}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
+          </div>
 
-              <input
-                name="course_name"
-                placeholder="Course Name"
-                value={form.course_name}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
-
-              <input
-                name="department"
-                placeholder="Department"
-                value={form.department}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
-
-              <input
-                name="faculty"
-                placeholder="Faculty ID"
-                value={form.faculty}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
-
-              <input
-                name="semester"
-                placeholder="Semester"
-                value={form.semester}
-                onChange={handleChange}
-                className="border p-2 rounded"
-              />
-
+          {formError && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+              {formError}
             </div>
+          )}
 
-            <div className="flex justify-end gap-3 mt-4">
+          <div className="flex flex-col gap-3">
 
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-3 py-2 border rounded"
-              >
-                Cancel
-              </button>
+            <input
+              name="course_code"
+              placeholder="Course Code (ex: CS301)"
+              value={form.course_code}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg"
+            />
 
-              <button
-                onClick={saveCourse}
-                className="bg-primary text-white px-4 py-2 rounded"
-              >
-                Save
-              </button>
+            <input
+              name="course_name"
+              placeholder="Course Name"
+              value={form.course_name}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg"
+            />
 
-            </div>
+            <select
+              name="department"
+              value={form.department}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg"
+            >
+              <option value="">Select Department</option>
+              {departments.map(d=>(
+                <option key={d} value={d}>{d}</option>
+              ))}
+            </select>
+
+            <select
+              name="faculty"
+              value={form.faculty}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg"
+            >
+              <option value="">Select Faculty</option>
+
+              {facultyList.map((f:any)=>(
+                <option key={f.id} value={f.id}>
+                  {f.name}
+                </option>
+              ))}
+
+            </select>
+
+            <select
+              name="semester"
+              value={form.semester}
+              onChange={handleChange}
+              className="border px-3 py-2 rounded-lg"
+            >
+              <option value="">Select Semester</option>
+              <option value="1">Sem 1</option>
+              <option value="2">Sem 2</option>
+              <option value="3">Sem 3</option>
+              <option value="4">Sem 4</option>
+              <option value="5">Sem 5</option>
+              <option value="6">Sem 6</option>
+              <option value="7">Sem 7</option>
+              <option value="8">Sem 8</option>
+            </select>
+
+          </div>
+
+          <div className="flex justify-end gap-3 mt-4">
+
+            <button
+              onClick={()=>setShowModal(false)}
+              className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={saveCourse}
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+            >
+              Save
+            </button>
 
           </div>
 
         </div>
 
-      )}
+      </div>
 
-    </AdminDashboardLayout>
-  );
-};
+    )}
 
-export default AdminCourses;
+    {/* Delete Modal */}
+
+    {deleteId && (
+
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
+
+        <div className="bg-white p-6 rounded-xl w-[320px] text-center">
+
+          <h2 className="text-lg font-semibold mb-3">
+            Delete Course
+          </h2>
+
+          <p className="text-sm text-muted-foreground mb-5">
+            Are you sure you want to delete this course?
+          </p>
+
+          <div className="flex justify-center gap-3">
+
+            <button
+              onClick={()=>setDeleteId(null)}
+              className="px-4 py-2 border rounded-lg"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={confirmDelete}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Delete
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    )}
+
+  </AdminDashboardLayout>
+  )
+}
+
+export default AdminCourses

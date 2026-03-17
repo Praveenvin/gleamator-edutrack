@@ -13,7 +13,8 @@ from .models import (
     Message,
     UserProfile,
     Timetable,
-    StudentActivity
+    StudentActivity,
+    AssignmentSubmission,
 )
 
 admin.site.register(Student)
@@ -30,4 +31,5 @@ admin.site.register(Message)
 admin.site.register(UserProfile)
 admin.site.register(Timetable)
 admin.site.register(StudentActivity)
+admin.site.register(AssignmentSubmission)
 
