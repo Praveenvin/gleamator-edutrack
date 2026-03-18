@@ -1,0 +1,12 @@
+Code,Name,Department,Faculty,Semester
+CS301,Data Structures,CSE,Dr. Anand,3
+CS302,Operating Systems,CSE,Dr. Anand,4
+CS303,Database Management Systems,ISE,Dr. Anand,3
+CS304,Computer Networks,CSE,Dr. Anand,4
+AI301,Machine Learning,AI,Dr. Kavitha,5
+AI302,Artificial Intelligence,AI,Dr. Sunil,6
+EC301,Microprocessors,ECE,Dr. Prakash,3
+EC302,Digital Electronics,ECE,Dr. Meena,4
+ME301,Thermodynamics,MECH,Dr. Mahesh,3
+ME303,Manufacturing Systems,MECH,Dr. Prakash,1
+ME302,Designing,MECH,Dr. Mahesh,7

@@ -1,5 +1,5 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
-import { Download } from "lucide-react";
+import { Download, FileText } from "lucide-react";
 import { useEffect, useState } from "react";
 import axios from "axios";
 
@@ -12,6 +12,8 @@ interface Material {
   downloads: number
 }
 
+const FILE_BASE = "http://127.0.0.1:8000";
+
 const StudyMaterial = () => {
 
   const [materials,setMaterials] = useState<Material[]>([])
@@ -22,109 +24,114 @@ const StudyMaterial = () => {
   },[])
 
   const fetchMaterials = async ()=>{
-
     try{
-
-      const res = await axios.get(
-        "http://127.0.0.1:8000/api/materials/"
-      )
-
+      const res = await axios.get(`${FILE_BASE}/api/materials/`)
       setMaterials(res.data)
-
-    }
-    catch(err){
+    }catch(err){
       console.error("Material fetch failed",err)
-    }
-    finally{
+    }finally{
       setLoading(false)
     }
-
   }
 
   return (
 
   <DashboardLayout>
 
-    <h1 className="text-2xl font-medium text-foreground mb-6">
+    <h1 className="text-2xl font-semibold text-foreground mb-6">
       Study Material
     </h1>
 
-    <div className="bg-card rounded-lg border border-border overflow-hidden">
+    {/* CARD */}
+    <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
 
+      {/* LOADING */}
       {loading && (
-        <p className="p-6 text-muted-foreground">
+        <div className="p-10 text-center text-muted-foreground text-sm">
           Loading materials...
-        </p>
+        </div>
       )}
 
+      {/* EMPTY */}
       {!loading && materials.length === 0 && (
-        <p className="p-6 text-muted-foreground">
-          No study materials uploaded yet
-        </p>
+        <div className="p-10 text-center text-muted-foreground text-sm">
+          No study materials available
+        </div>
       )}
 
-      {materials.length > 0 && (
+      {/* TABLE */}
+      {!loading && materials.length > 0 && (
 
       <table className="w-full text-sm">
 
-        <thead>
-
-          <tr className="border-b border-border bg-secondary/50">
-
-            <th className="text-left px-6 py-3 font-medium text-muted-foreground">
-              Title
-            </th>
-
-            <th className="text-left px-6 py-3 font-medium text-muted-foreground">
-              Course
-            </th>
-
-            <th className="text-left px-6 py-3 font-medium text-muted-foreground">
-              Uploaded
-            </th>
-
-            <th className="text-left px-6 py-3 font-medium text-muted-foreground">
-              Downloads
-            </th>
-
-            <th className="text-left px-6 py-3 font-medium text-muted-foreground">
-              Action
-            </th>
-
+        <thead className="bg-secondary/50">
+          <tr>
+            {["Material","Course","Uploaded","Downloads","Actions"].map(h=>(
+              <th key={h} className="text-left px-6 py-3 text-muted-foreground font-medium">
+                {h}
+              </th>
+            ))}
           </tr>
-
         </thead>
 
         <tbody>
 
           {materials.map((m)=>(
 
-            <tr key={m.id} className="border-b border-border hover:bg-secondary/30">
+            <tr
+              key={m.id}
+              className="border-t border-border hover:bg-secondary/40 transition"
+            >
 
-              <td className="px-6 py-4 text-foreground">
+              {/* TITLE */}
+              <td className="px-6 py-4 flex items-center gap-3 font-medium text-foreground">
+                <div className="w-9 h-9 flex items-center justify-center rounded-lg bg-primary/10 text-primary">
+                  <FileText size={16}/>
+                </div>
                 {m.title}
               </td>
 
-              <td className="px-6 py-4 text-muted-foreground">
-                Course {m.course}
+              {/* COURSE */}
+              <td className="px-6 py-4">
+                <span className="px-3 py-1 text-xs rounded-full bg-secondary text-muted-foreground">
+                  Course {m.course}
+                </span>
               </td>
 
+              {/* DATE */}
               <td className="px-6 py-4 text-muted-foreground">
-                {new Date(m.uploaded_at).toLocaleDateString()}
+                {new Date(m.uploaded_at).toLocaleDateString("en-IN",{
+                  day:"numeric",
+                  month:"short",
+                  year:"numeric"
+                })}
               </td>
 
-              <td className="px-6 py-4 text-muted-foreground">
+              {/* DOWNLOAD COUNT */}
+              <td className="px-6 py-4 text-muted-foreground font-medium">
                 {m.downloads}
               </td>
 
-              <td className="px-6 py-4">
+              {/* ACTIONS */}
+              <td className="px-6 py-4 flex gap-2">
 
+                {/* PREVIEW */}
                 <a
-                  href={`http://127.0.0.1:8000${m.file}`}
+                  href={`${FILE_BASE}${m.file}`}
                   target="_blank"
-                  className="flex items-center gap-2 text-primary hover:underline"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition"
                 >
-                  <Download className="h-4 w-4"/>
+                  Preview
+                </a>
+
+                {/* DOWNLOAD */}
+                <a
+                  href={`${FILE_BASE}${m.file}`}
+                  download
+                  className="flex items-center gap-1 px-3 py-1.5 text-xs rounded-lg bg-primary text-white hover:bg-primary/90 transition"
+                >
+                  <Download size={14}/>
                   Download
                 </a>
 
