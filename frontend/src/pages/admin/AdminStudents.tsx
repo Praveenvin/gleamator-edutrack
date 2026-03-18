@@ -39,14 +39,16 @@ const AdminStudents = ()=>{
 
   const [departmentFilter,setDepartmentFilter] = useState("");
   const [yearFilter,setYearFilter] = useState("");
-
+  const [sortField,setSortField] = useState<string | null>(null);
+  const [sortOrder,setSortOrder] = useState<"asc" | "desc">("asc");
   const [showModal,setShowModal] = useState(false);
   const [editingStudent,setEditingStudent] = useState<Student | null>(null);
 
   const [deleteId,setDeleteId] = useState<number | null>(null);
   const [message,setMessage] = useState<string | null>(null);
   const [formError,setFormError] = useState<string | null>(null);
-
+  const [currentPage,setCurrentPage] = useState(1);
+  const rowsPerPage = 8;
   const [form,setForm] = useState({
     name:"",
     usn:"",
@@ -65,20 +67,37 @@ const AdminStudents = ()=>{
     fetchStudents();
   },[]);
 
-  const filteredStudents = students.filter((s)=>{
+  const filteredStudents = students
+.filter((s)=>{
 
-    const matchesSearch =
-      s.name.toLowerCase().includes(search.toLowerCase()) ||
-      s.usn.toLowerCase().includes(search.toLowerCase());
+  const searchValue = search.toLowerCase();
 
-    const matchesDept =
-      departmentFilter === "" || s.department === departmentFilter;
+  const matchesSearch =
+    s.name.toLowerCase().includes(searchValue) ||
+    s.usn.toLowerCase().includes(searchValue) ||
+    s.email.toLowerCase().includes(searchValue) ||
+    s.phone.toLowerCase().includes(searchValue) ||
+    s.department.toLowerCase().includes(searchValue) ||
+    s.year.toString().includes(searchValue);
 
-    const matchesYear =
-      yearFilter === "" || s.year === Number(yearFilter);
+  const matchesDept =
+    departmentFilter === "" || s.department === departmentFilter;
 
-    return matchesSearch && matchesDept && matchesYear;
-  });
+  const matchesYear =
+    yearFilter === "" || s.year === Number(yearFilter);
+
+  return matchesSearch && matchesDept && matchesYear;
+
+})
+.sort((a:any,b:any)=>{
+
+  if(!sortField) return 0;
+
+  if(a[sortField] < b[sortField]) return sortOrder==="asc"?-1:1;
+  if(a[sortField] > b[sortField]) return sortOrder==="asc"?1:-1;
+
+  return 0;
+});
 
   const handleChange = (e:any)=>{
     setForm({
@@ -147,6 +166,20 @@ const AdminStudents = ()=>{
   }
 
 };
+const handleSort = (field:string)=>{
+  setCurrentPage(1);
+  if(sortField === field){
+    setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+  } else {
+    setSortField(field);
+    setSortOrder("asc");
+  }
+};
+
+const sortIndicator = (field:string)=>{
+  if(sortField !== field) return "";
+  return sortOrder === "asc" ? "▲" : "▼";
+};
 
   const confirmDelete = async ()=>{
 
@@ -168,7 +201,10 @@ const AdminStudents = ()=>{
   }
 
 };
-
+const indexOfLast = currentPage * rowsPerPage;
+const indexOfFirst = indexOfLast - rowsPerPage;
+const currentData = filteredStudents.slice(indexOfFirst,indexOfLast);
+const totalPages = Math.ceil(filteredStudents.length / rowsPerPage);
   return (
   <AdminDashboardLayout>
 
@@ -194,12 +230,18 @@ const AdminStudents = ()=>{
     placeholder="Search students..."
     className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
     value={search}
-    onChange={(e)=>setSearch(e.target.value)}
+    onChange={(e)=>{
+  setSearch(e.target.value);
+  setCurrentPage(1);
+}}
   />
 
   <select
     value={departmentFilter}
-    onChange={(e)=>setDepartmentFilter(e.target.value)}
+    onChange={(e)=>{
+  setDepartmentFilter(e.target.value);
+  setCurrentPage(1);
+}}
     className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
   >
     <option value="">All Departments</option>
@@ -210,7 +252,10 @@ const AdminStudents = ()=>{
 
   <select
     value={yearFilter}
-    onChange={(e)=>setYearFilter(e.target.value)}
+    onChange={(e)=>{
+  setYearFilter(e.target.value);
+  setCurrentPage(1);
+}}
     className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
   >
     <option value="">All Years</option>
@@ -219,7 +264,54 @@ const AdminStudents = ()=>{
     <option value="3">3rd Year</option>
     <option value="4">4th Year</option>
   </select>
+  <button
+onClick={()=>{
+  const headers = ["ID","USN","Name","Department","Year","Email","Phone"];
 
+  const rows = filteredStudents.map(s=>[
+    s.id,s.usn,s.name,s.department,s.year,s.email,s.phone
+  ]);
+
+  let csv =
+    "data:text/csv;charset=utf-8," +
+    [headers,...rows].map(r=>r.join(",")).join("\n");
+
+  const link = document.createElement("a");
+  link.href = encodeURI(csv);
+  link.download = "filtered_students.csv";
+  link.click();
+}}
+className="px-4 py-2 rounded-lg text-sm font-medium 
+border border-border bg-background 
+hover:bg-primary/10 hover:text-primary hover:border-primary/40 
+transition-all duration-200 shadow-sm hover:shadow"
+>
+Export Filtered
+</button>
+
+<button
+onClick={()=>{
+  const headers = ["ID","USN","Name","Department","Year","Email","Phone"];
+
+  const rows = students.map(s=>[
+    s.id,s.usn,s.name,s.department,s.year,s.email,s.phone
+  ]);
+
+  let csv =
+    "data:text/csv;charset=utf-8," +
+    [headers,...rows].map(r=>r.join(",")).join("\n");
+
+  const link = document.createElement("a");
+  link.href = encodeURI(csv);
+  link.download = "all_students.csv";
+  link.click();
+}}
+className="px-4 py-2 rounded-lg text-sm font-medium 
+bg-primary text-white hover:bg-primary/90 
+transition-all duration-200 shadow hover:shadow-md"
+>
+Export All
+</button>
   <button
     onClick={openAddModal}
     className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
@@ -239,18 +331,52 @@ const AdminStudents = ()=>{
         <thead className="bg-secondary/50">
 
           <tr>
-            {["ID","USN","Name","Department","Year","Email","Phone","Actions"].map((h)=>(
-              <th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">
-                {h}
-              </th>
-            ))}
-          </tr>
+
+  <th onClick={()=>handleSort("id")} className="text-left px-4 py-3 cursor-pointer">
+    ID {sortIndicator("id")}
+  </th>
+
+  <th onClick={()=>handleSort("usn")} className="text-left px-4 py-3 cursor-pointer">
+    USN {sortIndicator("usn")}
+  </th>
+
+  <th onClick={()=>handleSort("name")} className="text-left px-4 py-3 cursor-pointer">
+    Name {sortIndicator("name")}
+  </th>
+
+  <th onClick={()=>handleSort("department")} className="text-left px-4 py-3 cursor-pointer">
+    Department {sortIndicator("department")}
+  </th>
+
+  <th onClick={()=>handleSort("year")} className="text-left px-4 py-3 cursor-pointer">
+    Year {sortIndicator("year")}
+  </th>
+
+  <th className="text-left px-4 py-3">
+    Email
+  </th>
+
+  <th className="text-left px-4 py-3">
+    Phone
+  </th>
+
+  <th className="text-left px-4 py-3">
+    Actions
+  </th>
+
+</tr>
 
         </thead>
-
+{currentData.length === 0 && (
+<tr>
+  <td colSpan={8} className="text-center py-4 text-muted-foreground">
+    No students found
+  </td>
+</tr>
+)}
         <tbody>
 
-          {filteredStudents.map((s)=>(
+          {currentData.map((s)=>(
             <tr key={s.id} className="border-t border-border hover:bg-secondary/40 transition">
 
               <td className="px-4 py-3 text-primary">{s.id}</td>
@@ -311,16 +437,53 @@ const AdminStudents = ()=>{
       </table>
 
     </div>
+    <div className="flex justify-between items-center mt-5">
 
+<p className="text-sm text-muted-foreground">
+Page {currentPage} of {totalPages}
+</p>
+
+<div className="flex gap-2">
+
+<button
+  onClick={()=>setCurrentPage(p=>Math.max(p-1,1))}
+  disabled={currentPage===1}
+  className={`px-4 py-2 rounded-lg text-sm font-medium 
+  flex items-center gap-1 border transition-all duration-200
+
+  ${currentPage===1
+    ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+    : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md"
+  }`}
+>
+  ← Prev
+</button>
+
+<button
+  onClick={()=>setCurrentPage(p=>Math.min(p+1,totalPages))}
+  disabled={currentPage===totalPages}
+  className={`px-4 py-2 rounded-lg text-sm font-medium 
+  flex items-center gap-1 border transition-all duration-200
+
+  ${currentPage===totalPages
+    ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+    : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md"
+  }`}
+>
+  Next →
+</button>
+
+</div>
+</div>
     {/* Add/Edit Modal */}
 
     {showModal && (
 
       <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
 
-        <div className="bg-white rounded-xl shadow-lg p-6 w-[480px]">
+        <div className="bg-white p-6 rounded-xl w-[420px]">
 
-          <div className="flex justify-between items-center mb-5">
+          <div className="flex justify-between items-center mb-4">
 
             <h2 className="text-lg font-semibold">
               {editingStudent ? "Edit Student" : "Add Student"}
@@ -332,7 +495,7 @@ const AdminStudents = ()=>{
 
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="flex flex-col gap-3">
             {formError && (
   <div className="col-span-2 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
     {formError}
@@ -343,7 +506,10 @@ const AdminStudents = ()=>{
               placeholder="Name"
               value={form.name}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg text-sm"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             />
 
             <input
@@ -351,14 +517,20 @@ const AdminStudents = ()=>{
               placeholder="USN"
               value={form.usn}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg text-sm"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             />
 
             <select
               name="department"
               value={form.department}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg text-sm"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             >
               <option value="">Select Department</option>
               {departments.map((d)=>(
@@ -370,7 +542,10 @@ const AdminStudents = ()=>{
               name="year"
               value={form.year}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg text-sm"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             >
               <option value={1}>1st Year</option>
               <option value={2}>2nd Year</option>
@@ -383,7 +558,10 @@ const AdminStudents = ()=>{
               placeholder="Email"
               value={form.email}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg text-sm"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             />
 
             <input
@@ -391,7 +569,10 @@ const AdminStudents = ()=>{
               placeholder="Phone"
               value={form.phone}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg text-sm"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             />
 
           </div>
@@ -400,14 +581,14 @@ const AdminStudents = ()=>{
 
             <button
               onClick={()=>setShowModal(false)}
-              className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 border rounded-lg hover:bg-gray-100"
             >
               Cancel
             </button>
 
             <button
               onClick={saveStudent}
-              className="px-4 py-2 text-sm bg-primary text-white rounded-lg shadow hover:bg-primary/90"
+              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
             >
               {editingStudent ? "Update Student" : "Add Student"}
             </button>
@@ -432,7 +613,7 @@ const AdminStudents = ()=>{
             Delete Student
           </h2>
 
-          <p className="text-sm text-muted-foreground mb-5">
+          <p className="text-sm text-muted-foreground mb-4">
             Are you sure you want to delete this student?
           </p>
 

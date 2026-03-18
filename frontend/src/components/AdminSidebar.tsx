@@ -14,7 +14,6 @@ const menuItems = [
   { title: "Attendance", url: "/admin-dashboard/attendance", icon: ClipboardCheck },
   { title: "Assignments", url: "/admin-dashboard/assignments", icon: FileText },
   { title: "Study Materials", url: "/admin-dashboard/materials", icon: BookMarked },
-  { title: "Reports", url: "/admin-dashboard/reports", icon: PieChart },
   { title: "Settings", url: "/admin-dashboard/settings", icon: Settings },
 ];
 

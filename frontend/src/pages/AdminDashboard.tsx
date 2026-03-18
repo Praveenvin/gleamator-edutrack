@@ -44,7 +44,7 @@ const AdminDashboard = () => {
       setAttendance(attendanceRes.data);
 
       buildDepartmentChart(studentsRes.data);
-      buildAttendanceChart(attendanceRes.data);
+      buildAttendanceChart(attendanceRes.data, coursesRes.data);
 
       setRecentStudents(studentsRes.data.slice(-5).reverse());
       setRecentCourses(coursesRes.data.slice(-5).reverse());
@@ -81,30 +81,47 @@ const AdminDashboard = () => {
 
   };
 
-  const buildAttendanceChart = (attendance:any[]) => {
+  const buildAttendanceChart = (attendance:any[], courses:any[]) => {
 
-    const map:any = {};
+  const map:any = {};
 
-    attendance.forEach((a:any)=>{
+  attendance.forEach((a:any)=>{
 
-      if(!map[a.course]) map[a.course] = {present:0,total:0};
+    const courseId = a.course;
 
-      map[a.course].total++;
+    if(!map[courseId]) {
+      map[courseId] = {
+        present: 0,
+        total: 0
+      };
+    }
 
-      if(a.status === "Present") map[a.course].present++;
+    map[courseId].total++;
 
-    });
+    if(a.status === "Present") {
+      map[courseId].present++;
+    }
 
-    const result = Object.keys(map).map(c=>({
+  });
 
-      dept:`Course ${c}`,
-      attendance:Math.round((map[c].present/map[c].total)*100)
+  const result = Object.keys(map).map((courseId)=>{
 
-    }));
+    const courseObj = courses.find((c:any)=>c.id == courseId);
 
-    setAttendanceAnalytics(result);
+    return {
+      dept: courseObj ? courseObj.course_name : `Course ${courseId}`,
+      attendance: Math.round(
+        (map[courseId].present / map[courseId].total) * 100
+      )
+    };
 
-  };
+  });
+
+  // 🔥 SORT (professional look)
+  result.sort((a,b)=>b.attendance - a.attendance);
+
+  setAttendanceAnalytics(result);
+};
 
   const attendanceRate = attendance.length
     ? Math.round(

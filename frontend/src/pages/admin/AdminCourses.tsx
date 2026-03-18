@@ -32,7 +32,13 @@ const AdminCourses = ()=>{
   const [facultyList,setFacultyList] = useState<any[]>([])
 
   const [search,setSearch] = useState("")
-  const [departmentFilter,setDepartmentFilter] = useState("")
+  const [departmentFilter,setDepartmentFilter] = useState("All")
+
+  const [sortField,setSortField] = useState<string | null>(null)
+  const [sortOrder,setSortOrder] = useState<"asc" | "desc">("asc")
+
+  const [currentPage,setCurrentPage] = useState(1)
+  const rowsPerPage = 8
 
   const [showModal,setShowModal] = useState(false)
   const [editing,setEditing] = useState(false)
@@ -64,39 +70,21 @@ const AdminCourses = ()=>{
     fetchCourses()
     fetchFaculty()
   },[])
-
-  const filteredCourses = courses.filter((c)=>{
-
-    const matchSearch =
-      c.course_name.toLowerCase().includes(search.toLowerCase()) ||
-      c.course_code.toLowerCase().includes(search.toLowerCase())
-
-    const matchDept =
-      departmentFilter === "" || c.department === departmentFilter
-
-    return matchSearch && matchDept
-
-  })
+  useEffect(()=>{
+  setCurrentPage(1)
+},[search, departmentFilter])
 
   const handleChange = (e:any)=>{
-
     let value = e.target.value
-
     if(e.target.name === "course_code"){
       value = value.toUpperCase()
     }
-
-    setForm({
-      ...form,
-      [e.target.name]: value
-    })
-
+    setForm({...form,[e.target.name]: value})
   }
 
   const openAdd = ()=>{
     setEditing(false)
     setFormError(null)
-
     setForm({
       course_name:"",
       course_code:"",
@@ -104,7 +92,6 @@ const AdminCourses = ()=>{
       faculty:"",
       semester:""
     })
-
     setShowModal(true)
   }
 
@@ -116,20 +103,11 @@ const AdminCourses = ()=>{
   }
 
   const saveCourse = async ()=>{
-
-    if(
-      !form.course_name ||
-      !form.course_code ||
-      !form.department ||
-      !form.faculty ||
-      !form.semester
-    ){
+    if(!form.course_name || !form.course_code || !form.department || !form.faculty || !form.semester){
       setFormError("All fields are mandatory")
       return
     }
-
     try{
-
       if(editing){
         await axios.put(`${API}${form.id}/`,form)
         setMessage("Course updated successfully")
@@ -137,33 +115,65 @@ const AdminCourses = ()=>{
         await axios.post(API,form)
         setMessage("Course added successfully")
       }
-
       setShowModal(false)
       fetchCourses()
-
     }catch(err:any){
-
-      setFormError(
-        err.response?.data?.error ||
-        "Course code already exists"
-      )
-
+      setFormError(err.response?.data?.error || "Course code already exists")
     }
-
   }
 
   const confirmDelete = async ()=>{
-
     if(!deleteId) return
-
     await axios.delete(`${API}${deleteId}/`)
-
     setDeleteId(null)
-
     fetchCourses()
-
     setMessage("Course deleted successfully")
+  }
 
+  /* FILTER + SEARCH + SORT */
+  const filteredCourses = courses
+  .filter((c)=>{
+    const s = search.toLowerCase()
+    const matchSearch =
+      c.course_name.toLowerCase().includes(s) ||
+      c.course_code.toLowerCase().includes(s) ||
+      c.faculty_name?.toLowerCase().includes(s) ||
+      c.department.toLowerCase().includes(s)
+
+    const matchDept =
+      departmentFilter === "All" || c.department === departmentFilter
+
+    return matchSearch && matchDept
+  })
+  .sort((a:any,b:any)=>{
+  if(!sortField) return 0
+
+  const A = (a[sortField] || "").toString().toLowerCase()
+  const B = (b[sortField] || "").toString().toLowerCase()
+
+  if(A < B) return sortOrder === "asc" ? -1 : 1
+  if(A > B) return sortOrder === "asc" ? 1 : -1
+  return 0
+})
+
+  /* PAGINATION */
+  const indexOfLast = currentPage * rowsPerPage
+  const indexOfFirst = indexOfLast - rowsPerPage
+  const currentData = filteredCourses.slice(indexOfFirst,indexOfLast)
+  const totalPages = Math.ceil(filteredCourses.length / rowsPerPage)
+
+  const handleSort = (field:string)=>{
+    if(sortField === field){
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc")
+    } else {
+      setSortField(field)
+      setSortOrder("asc")
+    }
+  }
+
+  const sortIndicator = (field:string)=>{
+    if(sortField !== field) return ""
+    return sortOrder === "asc" ? "▲" : "▼"
   }
 
   return (
@@ -184,27 +194,69 @@ const AdminCourses = ()=>{
       </div>
     )}
 
-    {/* Search + Filters */}
-
     <div className="flex flex-wrap items-center gap-4 mb-6">
 
       <input
         placeholder="Search courses..."
-        className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
         value={search}
         onChange={(e)=>setSearch(e.target.value)}
+        className="border border-border px-4 py-2.5 rounded-lg text-sm 
+        hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
       />
 
       <select
         value={departmentFilter}
         onChange={(e)=>setDepartmentFilter(e.target.value)}
-        className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+        className="border border-border px-3 py-2.5 rounded-lg text-sm 
+        hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
       >
-        <option value="">All Departments</option>
-        {departments.map(d=>(
-          <option key={d} value={d}>{d}</option>
-        ))}
+        <option value="All">All Departments</option>
+        {departments.map(d=>(<option key={d}>{d}</option>))}
       </select>
+
+      {/* EXPORT BUTTONS */}
+      <button
+        onClick={()=>{
+          const headers = ["Code","Name","Department","Faculty","Semester"]
+          const rows = filteredCourses.map(c=>[
+            c.course_code,
+            c.course_name,
+            c.department,
+            c.faculty_name,
+            c.semester
+          ])
+          let csv = "data:text/csv;charset=utf-8," + [headers,...rows].map(r=>r.join(",")).join("\n")
+          const link = document.createElement("a")
+          link.href = encodeURI(csv)
+          link.download = "filtered_courses.csv"
+          link.click()
+        }}
+        className="px-4 py-2 rounded-lg text-sm font-medium border border-border bg-background 
+        hover:bg-primary/10 hover:text-primary hover:border-primary/40 transition-all duration-200 shadow-sm hover:shadow"
+      >
+        Export Filtered
+      </button>
+
+      <button
+        onClick={()=>{
+          const headers = ["Code","Name","Department","Faculty","Semester"]
+          const rows = courses.map(c=>[
+            c.course_code,
+            c.course_name,
+            c.department,
+            c.faculty_name,
+            c.semester
+          ])
+          let csv = "data:text/csv;charset=utf-8," + [headers,...rows].map(r=>r.join(",")).join("\n")
+          const link = document.createElement("a")
+          link.href = encodeURI(csv)
+          link.download = "all_courses.csv"
+          link.click()
+        }}
+        className="px-4 py-2 rounded-lg text-sm font-medium bg-primary text-white hover:bg-primary/90 transition-all duration-200 shadow hover:shadow-md"
+      >
+        Export All
+      </button>
 
       <button
         onClick={openAdd}
@@ -216,83 +268,113 @@ const AdminCourses = ()=>{
 
     </div>
 
-    {/* Table */}
-
+    {/* TABLE */}
     <div className="bg-card rounded-lg border border-border overflow-hidden">
 
       <table className="w-full text-sm">
-
         <thead className="bg-secondary/50">
           <tr>
-            {["Code","Course Name","Department","Faculty","Semester","Actions"].map(h=>(
-              <th key={h} className="px-4 py-3 text-left text-muted-foreground font-medium">
-                {h}
-              </th>
-            ))}
+            <th className="px-4 py-3">Code</th>
+            <th onClick={()=>handleSort("course_name")} className="px-4 py-3 cursor-pointer">
+              Course Name {sortIndicator("course_name")}
+            </th>
+            <th onClick={()=>handleSort("department")} className="px-4 py-3 cursor-pointer">
+              Department {sortIndicator("department")}
+            </th>
+            <th
+  onClick={()=>handleSort("faculty_name")}
+  className="px-4 py-3 cursor-pointer"
+>
+  Faculty {sortIndicator("faculty_name")}
+</th>
+            <th onClick={()=>handleSort("semester")} className="px-4 py-3 cursor-pointer">
+              Semester {sortIndicator("semester")}
+            </th>
+            <th className="px-4 py-3">Actions</th>
           </tr>
         </thead>
 
         <tbody>
-
-          {filteredCourses.map(c=>(
+          {currentData.map(c=>(
             <tr key={c.id} className="border-t border-border hover:bg-secondary/40 transition">
-
-              <td className="px-4 py-3 font-mono-data text-primary">
-                {c.course_code}
-              </td>
-
-              <td className="px-4 py-3 font-medium">
-                {c.course_name}
-              </td>
-
+              <td className="px-4 py-3 font-mono-data text-primary">{c.course_code}</td>
+              <td className="px-4 py-3 font-medium">{c.course_name}</td>
               <td className="px-4 py-3">
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${deptColors[c.department]}`}>
                   {c.department}
                 </span>
               </td>
-
-              <td className="px-4 py-3">
-                {c.faculty_name}
-              </td>
-
-              <td className="px-4 py-3">
-                Sem {c.semester}
-              </td>
+              <td className="px-4 py-3">{c.faculty_name}</td>
+              <td className="px-4 py-3">Sem {c.semester}</td>
 
               <td className="px-4 py-3 flex gap-2">
-
-                <button
-                  onClick={()=>openEdit(c)}
-                  className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition"
-                >
+                <button onClick={()=>openEdit(c)} className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition">
                   <Pencil size={16}/>
                 </button>
-
-                <button
-                  onClick={()=>setDeleteId(c.id || null)}
-                  className="p-1.5 rounded text-red-600 hover:bg-red-100 transition"
-                >
+                <button onClick={()=>setDeleteId(c.id || null)} className="p-1.5 rounded text-red-600 hover:bg-red-100 transition">
                   <Trash2 size={16}/>
                 </button>
-
               </td>
-
             </tr>
           ))}
-
         </tbody>
-
       </table>
 
     </div>
 
+    {/* PAGINATION */}
+    <div className="flex justify-between items-center mt-6">
+
+  {/* INFO */}
+  <p className="text-sm text-muted-foreground">
+    Page {totalPages === 0 ? 0 : currentPage} of {totalPages}
+  </p>
+
+  {/* CONTROLS */}
+  <div className="flex gap-2">
+
+    {/* PREV */}
+    <button
+      disabled={currentPage === 1}
+      onClick={()=>setCurrentPage(p=>Math.max(p-1,1))}
+      className="px-4 py-2 text-sm border border-border rounded-lg 
+      disabled:opacity-40 disabled:cursor-not-allowed
+      hover:bg-primary hover:text-white transition"
+    >
+      ← Prev
+    </button>
+
+    {/* NEXT */}
+    <button
+      disabled={currentPage === totalPages || totalPages === 0}
+      onClick={()=>setCurrentPage(p=>Math.min(p+1,totalPages))}
+      className="px-4 py-2 text-sm border border-border rounded-lg 
+      disabled:opacity-40 disabled:cursor-not-allowed
+      hover:bg-primary hover:text-white transition"
+    >
+      Next →
+    </button>
+
+  </div>
+
+</div>
     {/* Add / Edit Modal */}
 
     {showModal && (
 
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
 
-        <div className="bg-white p-6 rounded-xl w-[420px]">
+        <div className="bg-white p-6 rounded-2xl w-[440px] shadow-xl border border-border">
+
+  {/* HEADER */}
+  <div className="flex justify-between items-center mb-5">
+    <h2 className="text-lg font-semibold text-foreground">
+      {editing ? "Edit Course" : "Add Course"}
+    </h2>
+    <button className="p-1 rounded hover:bg-secondary transition" onClick={()=>setShowModal(false)}>
+      <X size={18}/>
+    </button>
+  </div>
 
           <div className="flex justify-between items-center mb-4">
 
@@ -441,8 +523,11 @@ const AdminCourses = ()=>{
 
     )}
 
+
   </AdminDashboardLayout>
   )
 }
 
 export default AdminCourses
+
+

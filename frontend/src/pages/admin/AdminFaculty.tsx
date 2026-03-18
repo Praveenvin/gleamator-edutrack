@@ -22,12 +22,7 @@ const deptColors: Record<string,string> = {
 const API = "http://127.0.0.1:8000/api/faculty/";
 
 const departments = ["AI","CSE","ISE","ECE","MECH"];
-
-const designations = [
-  "Assistant Professor",
-  "Associate Professor",
-  "Professor"
-];
+const designations = ["Assistant Professor","Associate Professor","Professor"];
 
 const AdminFaculty = () => {
 
@@ -54,6 +49,10 @@ const AdminFaculty = () => {
     designation:"",
     email:""
   });
+
+  /* ✅ PAGINATION */
+  const [currentPage,setCurrentPage] = useState(1);
+  const rowsPerPage = 8;
 
   const fetchFaculty = async ()=>{
     const res = await axios.get(API);
@@ -111,46 +110,36 @@ const AdminFaculty = () => {
       fetchFaculty();
 
     }catch(err:any){
-
       setFormError(
         err.response?.data?.error ||
         "Email already exists"
       );
-
     }
-
   };
 
   const confirmDelete = async ()=>{
 
     try{
-
       if(!deleteId) return;
 
       await axios.delete(`${API}${deleteId}/`);
 
       setDeleteId(null);
       fetchFaculty();
-
       setMessage("Faculty deleted successfully");
 
     }catch{
-
       setMessage("Error deleting faculty");
-
     }
-
   };
 
   const handleSort = (field:string)=>{
-
     if(sortField === field){
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
     } else {
       setSortField(field);
       setSortOrder("asc");
     }
-
   };
 
   const sortIndicator = (field:string)=>{
@@ -158,11 +147,18 @@ const AdminFaculty = () => {
     return sortOrder === "asc" ? "▲" : "▼";
   };
 
+  /* ✅ FILTER */
   const filteredFaculty = faculty
   .filter((f)=>{
 
+    const searchValue = search.toLowerCase();
+
     const matchSearch =
-      f.name.toLowerCase().includes(search.toLowerCase());
+      f.name.toLowerCase().includes(searchValue) ||
+      f.email.toLowerCase().includes(searchValue) ||
+      f.department.toLowerCase().includes(searchValue) ||
+      f.designation.toLowerCase().includes(searchValue) ||
+      f.id?.toString().includes(searchValue);
 
     const matchDept =
       departmentFilter === "All" ||
@@ -189,6 +185,12 @@ const AdminFaculty = () => {
 
   });
 
+  /* ✅ PAGINATION LOGIC */
+  const indexOfLast = currentPage * rowsPerPage;
+  const indexOfFirst = indexOfLast - rowsPerPage;
+  const currentData = filteredFaculty.slice(indexOfFirst,indexOfLast);
+  const totalPages = Math.ceil(filteredFaculty.length / rowsPerPage);
+
   return (
   <AdminDashboardLayout>
 
@@ -211,33 +213,87 @@ const AdminFaculty = () => {
 
       <input
         placeholder="Search faculty..."
-        className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
         value={search}
         onChange={(e)=>setSearch(e.target.value)}
+        className="border border-border px-4 py-2.5 rounded-lg text-sm 
+        hover:border-primary/40 focus:outline-none focus:ring-2 
+        focus:ring-primary/20 transition"
       />
 
       <select
         value={departmentFilter}
         onChange={(e)=>setDepartmentFilter(e.target.value)}
-        className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+        className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
       >
         <option value="All">All Departments</option>
-        {departments.map(d=>(
-          <option key={d} value={d}>{d}</option>
-        ))}
+        {departments.map(d=>(<option key={d}>{d}</option>))}
       </select>
 
       <select
         value={designationFilter}
         onChange={(e)=>setDesignationFilter(e.target.value)}
-        className="border border-border px-3 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
+        className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
       >
         <option value="All">All Designations</option>
-        {designations.map(d=>(
-          <option key={d} value={d}>{d}</option>
-        ))}
+        {designations.map(d=>(<option key={d}>{d}</option>))}
       </select>
+      <button
+onClick={()=>{
+  const headers = ["ID","Name","Department","Designation","Email"];
 
+  const rows = filteredFaculty.map(f=>[
+    `FAC${f.id?.toString().padStart(3,"0")}`,
+    f.name,
+    f.department,
+    f.designation,
+    f.email
+  ]);
+
+  let csv =
+    "data:text/csv;charset=utf-8," +
+    [headers,...rows].map(r=>r.join(",")).join("\n");
+
+  const link = document.createElement("a");
+  link.href = encodeURI(csv);
+  link.download = "filtered_faculty.csv";
+  link.click();
+}}
+className="px-4 py-2 rounded-lg text-sm font-medium 
+border border-border bg-background 
+hover:bg-primary/10 hover:text-primary hover:border-primary/40 
+transition-all duration-200 shadow-sm hover:shadow"
+>
+Export Filtered
+</button>
+<button
+onClick={()=>{
+  const headers = ["ID","Name","Department","Designation","Email"];
+
+  const rows = faculty.map(f=>[
+    `FAC${f.id?.toString().padStart(3,"0")}`,
+    f.name,
+    f.department,
+    f.designation,
+    f.email
+  ]);
+
+  let csv =
+    "data:text/csv;charset=utf-8," +
+    [headers,...rows].map(r=>r.join(",")).join("\n");
+
+  const link = document.createElement("a");
+  link.href = encodeURI(csv);
+  link.download = "all_faculty.csv";
+  link.click();
+}}
+className="px-4 py-2 rounded-lg text-sm font-medium 
+bg-primary text-white hover:bg-primary/90 
+transition-all duration-200 shadow hover:shadow-md"
+>
+Export All
+</button>
       <button
         onClick={openAdd}
         className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
@@ -253,37 +309,25 @@ const AdminFaculty = () => {
       <table className="w-full text-sm">
 
         <thead className="bg-secondary/50">
-
           <tr>
-
             <th className="px-4 py-3 text-left">ID</th>
-
             <th onClick={()=>handleSort("name")} className="px-4 py-3 cursor-pointer">
               Name {sortIndicator("name")}
             </th>
-
             <th onClick={()=>handleSort("department")} className="px-4 py-3 cursor-pointer">
               Department {sortIndicator("department")}
             </th>
-
             <th onClick={()=>handleSort("designation")} className="px-4 py-3 cursor-pointer">
               Designation {sortIndicator("designation")}
             </th>
-
             <th className="px-4 py-3">Email</th>
-
             <th className="px-4 py-3">Actions</th>
-
           </tr>
-
         </thead>
 
         <tbody>
-
-          {filteredFaculty.map((f)=>(
-
+          {currentData.map((f)=>(
             <tr key={f.id} className="border-t border-border hover:bg-secondary/40 transition">
-
               <td className="px-4 py-3 font-mono-data text-primary">
                 FAC{f.id?.toString().padStart(3,"0")}
               </td>
@@ -301,49 +345,72 @@ const AdminFaculty = () => {
               <td className="px-4 py-3">{f.email}</td>
 
               <td className="px-4 py-3 flex gap-2">
-
-                <button
-                  onClick={()=>openEdit(f)}
-                  className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition"
-                >
+                <button onClick={()=>openEdit(f)} className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition">
                   <Pencil size={16}/>
                 </button>
-
-                <button
-                  onClick={()=>setDeleteId(f.id || null)}
-                  className="p-1.5 rounded text-red-600 hover:bg-red-100 transition"
-                >
+                <button onClick={()=>setDeleteId(f.id || null)} className="p-1.5 rounded text-red-600 hover:bg-red-100 transition">
                   <Trash2 size={16}/>
                 </button>
-
               </td>
-
             </tr>
-
           ))}
-
         </tbody>
 
       </table>
 
     </div>
 
-    {showModal && (
+    {/* PAGINATION */}
+    <div className="flex justify-between items-center mt-4">
+      <p className="text-sm text-muted-foreground">
+        Page {currentPage} of {totalPages}
+      </p>
 
+      <div className="flex gap-2">
+
+  <button
+  onClick={()=>setCurrentPage(p=>Math.max(p-1,1))}
+  disabled={currentPage===1}
+  className={`px-4 py-2 rounded-lg text-sm font-medium 
+  flex items-center gap-1 border transition-all duration-200
+
+  ${currentPage===1
+    ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+    : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md"
+  }`}
+>
+  ← Prev
+</button>
+
+<button
+  onClick={()=>setCurrentPage(p=>Math.min(p+1,totalPages))}
+  disabled={currentPage===totalPages}
+  className={`px-4 py-2 rounded-lg text-sm font-medium 
+  flex items-center gap-1 border transition-all duration-200
+
+  ${currentPage===totalPages
+    ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+    : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md"
+  }`}
+>
+  Next →
+</button>
+</div>
+    </div>
+
+    {/* MODAL */}
+    {showModal && (
       <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
 
         <div className="bg-white p-6 rounded-xl w-[420px]">
 
           <div className="flex justify-between items-center mb-4">
-
             <h2 className="text-lg font-semibold">
               {editing ? "Edit Faculty" : "Add Faculty"}
             </h2>
-
             <button onClick={()=>setShowModal(false)}>
               <X size={18}/>
             </button>
-
           </div>
 
           {formError && (
@@ -359,31 +426,33 @@ const AdminFaculty = () => {
               placeholder="Name"
               value={form.name}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/40"
             />
 
             <select
               name="department"
               value={form.department}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             >
               <option value="">Select Department</option>
-              {departments.map(d=>(
-                <option key={d} value={d}>{d}</option>
-              ))}
+              {departments.map(d=>(<option key={d}>{d}</option>))}
             </select>
 
             <select
               name="designation"
               value={form.designation}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20 
+transition"
             >
               <option value="">Select Designation</option>
-              {designations.map(d=>(
-                <option key={d} value={d}>{d}</option>
-              ))}
+              {designations.map(d=>(<option key={d}>{d}</option>))}
             </select>
 
             <input
@@ -391,71 +460,22 @@ const AdminFaculty = () => {
               placeholder="Email"
               value={form.email}
               onChange={handleChange}
-              className="border px-3 py-2 rounded-lg"
+              className="border border-border px-3 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 hover:border-primary/40"
             />
 
           </div>
 
           <div className="flex justify-end gap-3 mt-4">
-
-            <button
-              onClick={()=>setShowModal(false)}
-              className="px-4 py-2 border rounded-lg hover:bg-gray-100"
-            >
+            <button onClick={()=>setShowModal(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-100">
               Cancel
             </button>
-
-            <button
-              onClick={saveFaculty}
-              className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
-            >
+            <button onClick={saveFaculty} className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90">
               Save
             </button>
-
           </div>
 
         </div>
-
       </div>
-
-    )}
-
-    {deleteId && (
-
-      <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
-
-        <div className="bg-white p-6 rounded-xl w-[320px] text-center">
-
-          <h2 className="text-lg font-semibold mb-3">
-            Delete Faculty
-          </h2>
-
-          <p className="text-sm text-muted-foreground mb-5">
-            Are you sure you want to delete this faculty member?
-          </p>
-
-          <div className="flex justify-center gap-3">
-
-            <button
-              onClick={()=>setDeleteId(null)}
-              className="px-4 py-2 border rounded-lg"
-            >
-              Cancel
-            </button>
-
-            <button
-              onClick={confirmDelete}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-            >
-              Delete
-            </button>
-
-          </div>
-
-        </div>
-
-      </div>
-
     )}
 
   </AdminDashboardLayout>

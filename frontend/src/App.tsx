@@ -26,7 +26,6 @@ import AdminCourses from "./pages/admin/AdminCourses";
 import AdminAttendance from "./pages/admin/AdminAttendance";
 import AdminAssignments from "./pages/admin/AdminAssignments";
 import AdminMaterials from "./pages/admin/AdminMaterials";
-import AdminReports from "./pages/admin/AdminReports";
 import AdminSettings from "./pages/admin/AdminSettings";
 
 import FacultyDashboard from "./pages/FacultyDashboard";
@@ -71,7 +70,6 @@ const App = () => (
             <Route path="/admin-dashboard/attendance" element={<ProtectedRoute role="admin"><AdminAttendance /></ProtectedRoute>} />
             <Route path="/admin-dashboard/assignments" element={<ProtectedRoute role="admin"><AdminAssignments /></ProtectedRoute>} />
             <Route path="/admin-dashboard/materials" element={<ProtectedRoute role="admin"><AdminMaterials /></ProtectedRoute>} />
-            <Route path="/admin-dashboard/reports" element={<ProtectedRoute role="admin"><AdminReports /></ProtectedRoute>} />
             <Route path="/admin-dashboard/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
 
             {/* Faculty routes */}
