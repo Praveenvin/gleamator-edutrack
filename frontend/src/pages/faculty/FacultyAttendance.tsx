@@ -29,7 +29,7 @@ const FacultyAttendance = () => {
 
   const [message,setMessage] = useState<string|null>(null);
   const [error,setError] = useState<string|null>(null);
-
+  const [loading, setLoading] = useState(false);
   // ================= FETCH =================
   useEffect(()=>{
     const fetchAll = async ()=>{
@@ -173,6 +173,7 @@ const chartData = courses.map((c:any)=>{
 
   const submit = async () => {
   try {
+    setLoading(true);
     setMessage(null);
     setError(null);
 
@@ -213,7 +214,29 @@ const chartData = courses.map((c:any)=>{
   // ================= UI =================
   return (
     <FacultyDashboardLayout>
+{message && (
+  <div className="mx-6 mt-4 px-4 py-3 rounded-lg bg-green-100 border border-green-200 text-green-700 text-sm flex justify-between items-center shadow-sm">
+    {message}
+    <button
+      onClick={() => setMessage(null)}
+      className="text-green-700 hover:text-green-900"
+    >
+      ✕
+    </button>
+  </div>
+)}
 
+{error && (
+  <div className="mx-6 mt-4 px-4 py-3 rounded-lg bg-red-100 border border-red-200 text-red-700 text-sm flex justify-between items-center shadow-sm">
+    {error}
+    <button
+      onClick={() => setError(null)}
+      className="text-red-700 hover:text-red-900"
+    >
+      ✕
+    </button>
+  </div>
+)}
   {mode === "dashboard" && (
     <div className="space-y-6">
 
@@ -434,11 +457,15 @@ const chartData = courses.map((c:any)=>{
 
       <div className="flex justify-end mt-5">
         <button
-          onClick={submit}
-          className="px-6 py-2 bg-primary text-white rounded-lg hover:opacity-90"
-        >
-          {isEditing ? "Save Changes" : "Submit Attendance"}
-        </button>
+  onClick={submit}
+  className={`px-6 py-2 rounded-lg text-white text-sm transition ${
+    isEditing
+      ? "bg-yellow-500 hover:bg-yellow-600"
+      : "bg-primary hover:opacity-90"
+  }`}
+>
+  {isEditing ? "Save Changes" : "Submit Attendance"}
+</button>
       </div>
 
     </div>
