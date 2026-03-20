@@ -1,0 +1,26 @@
+-Next button
+-Question number in codind interface
+-When I try to scroll while my cursor is over the code editor, it blocks the normal page scrolling. The editor should only scroll after I click inside it; otherwise, it should scroll the main dashboard.
+-after submiting the code(bar with run code is mis placing elemnts in it)
+Test case problem: 
+conditional:9,16(py),17,27,28,29
+ARRAYS SECTION:2,5,10,12,16,20,28,
+Strings:2,13,16,19,27,30
+Reccursion:1,2,4,5,10,12,21,26,27,28,29,30
+
+===Searching section numbering shows 330 instead of 30
+----In the left panel, the problem list shows only “Solve Problem” without the question numbering (for example, “1. Solve Problem”).
+---Scrolling Behavior in Coding Terminal
+
+Currently, when I hover over the coding area and try to scroll, the page does not scroll properly.
+
+The expected behavior would be:
+
+When the cursor is outside the coding editor, scrolling should move the entire page.
+
+When I click inside the coding editor, scrolling should move only within the coding editor so that I can review longer code easily.
+
+---Next Button After Submission
+
+After clicking Submit, it would be helpful to have a “Next” button on the problem card.
+This would allow users to quickly move to the next problem without returning to the list manually.

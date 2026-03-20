@@ -9,6 +9,7 @@ interface Assignment {
   description: string;
   due_date: string;
   file_url?: string;
+  status?: string;
 }
 
 const API = "http://127.0.0.1:8000/api/assignments/";
@@ -17,10 +18,13 @@ const FacultyAssignments = () => {
 
   const [adminAssignments, setAdminAssignments] = useState<Assignment[]>([]);
   const [myAssignments, setMyAssignments] = useState<Assignment[]>([]);
-
+  const [submitModal, setSubmitModal] = useState(false);
+  const [submitFile, setSubmitFile] = useState<File | null>(null);
+  const [currentAssignment, setCurrentAssignment] = useState<Assignment | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [viewModal, setViewModal] = useState(false);
-
+  const [submitError, setSubmitError] = useState("");
+  const [message, setMessage] = useState<string | null>(null); 
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<Assignment | null>(null);
 
@@ -35,19 +39,30 @@ const FacultyAssignments = () => {
     description: "",
     due_date: ""
   });
+  const openSubmitModal = (a: Assignment) => {
+  setCurrentAssignment(a);
+  setSubmitFile(null);
+  setSubmitModal(true);
+  setSubmitError("");    
+};
+
 
   /* FETCH */
 
   const fetchAssignments = async () => {
-    const res = await axios.get(API);
 
-    const admin = res.data.filter((a:any)=>a.created_by === "admin");
-    const faculty = res.data.filter((a:any)=>a.created_by === "faculty");
+  const facultyId = localStorage.getItem("faculty_id");
 
-    setAdminAssignments(admin);
-    setMyAssignments(faculty);
-  };
+  const res = await axios.get(API, {
+    params: { faculty: facultyId }   // ✅ SAFE WAY
+  });
 
+  const admin = res.data.filter((a:any) => a.created_by === "admin");
+  const faculty = res.data.filter((a:any) => a.created_by === "faculty");
+
+  setAdminAssignments(admin);
+  setMyAssignments(faculty);
+};
   useEffect(()=>{
     fetchAssignments();
   },[]);
@@ -73,43 +88,76 @@ const FacultyAssignments = () => {
     setForm(a);
     setShowModal(true);
   };
-
+  
   /* SAVE */
 
-  const saveAssignment = async ()=>{
+  const saveAssignment = async () => {
 
-    if(!form.title || !form.due_date){
-      setFormError("All fields are required");
+  if (!form.title || !form.due_date) {
+    setFormError("All fields are required");
+    return;
+  }
+
+  try {
+
+    const formData = new FormData();
+    const userId = localStorage.getItem("faculty_id");
+    formData.append("title", form.title);
+    formData.append("description", form.description);
+    formData.append("due_date", form.due_date);
+    formData.append("faculty", userId || "");
+    formData.append("created_by", "faculty"); 
+    if (file) {
+      formData.append("file", file);
+    }
+
+    if (editing) {
+      await axios.put(`${API}${form.id}/`, formData);
+    } else {
+      await axios.post(API, formData);
+    }
+
+    setShowModal(false);
+    fetchAssignments();
+
+  } catch {
+    setFormError("Error saving assignment");
+  }
+};
+const submitAssignment = async () => {
+  try {
+
+    if (!submitFile) {
+      setSubmitError("Please select a file");
       return;
     }
 
-    try{
+    const userId = localStorage.getItem("faculty_id");
 
-      const formData = new FormData();
+    const formData = new FormData();
+    formData.append("assignment", String(currentAssignment?.id));
+    formData.append("faculty", userId || "");           // ✅ FIX
+    formData.append("submitted_by", "faculty");         // ✅ FIX
+    formData.append("file", submitFile);
 
-      formData.append("title",form.title);
-      formData.append("description",form.description);
-      formData.append("due_date",form.due_date);
-      formData.append("created_by","faculty");
+    await axios.post(
+      "http://127.0.0.1:8000/api/submit-assignment/",
+      formData
+    );
 
-      if(file){
-        formData.append("file",file);
-      }
+    setSubmitModal(false);
+    setSubmitFile(null);
+    setSubmitError("");
 
-      if(editing){
-        await axios.put(`${API}${form.id}/`,formData);
-      }else{
-        await axios.post(API,formData);
-      }
+    setMessage("Assignment submitted successfully");
 
-      setShowModal(false);
-      fetchAssignments();
+    fetchAssignments();
 
-    }catch{
-      setFormError("Error saving assignment");
-    }
-  };
-
+  } catch (err) {
+    console.error(err);
+    setSubmitError("Submission failed. Try again.");
+  }
+};
   /* DELETE */
 
   const confirmDelete = async () => {
@@ -126,7 +174,16 @@ const FacultyAssignments = () => {
       <h1 className="text-2xl font-semibold text-foreground mb-6">
         Assignments
       </h1>
-
+      {message && (
+  <div className={`mb-4 px-4 py-2 rounded-lg text-sm flex justify-between items-center ${
+    message.toLowerCase().includes("error")
+      ? "bg-red-100 text-red-700"
+      : "bg-green-100 text-green-700"
+  }`}>
+    {message}
+    <button onClick={()=>setMessage(null)}>✕</button>
+  </div>
+)}
       {/* ADMIN ASSIGNMENTS */}
 
       <div className="mb-8">
@@ -166,12 +223,22 @@ const FacultyAssignments = () => {
                   </td>
 
                   <td className="px-4 py-3">
-                    <button
-                      className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition"
-                    >
-                      Submissions
-                    </button>
-                  </td>
+  {a.status === "Submitted" ? (
+    <button
+      onClick={() => openSubmitModal(a)}
+      className="px-3 py-1.5 text-xs rounded-lg bg-yellow-100 text-yellow-700 hover:bg-yellow-200 transition"
+    >
+      Edit Submission
+    </button>
+  ) : (
+    <button
+      onClick={() => openSubmitModal(a)}
+      className="px-3 py-1.5 text-xs rounded-lg bg-blue-100 text-blue-700 hover:bg-blue-200 transition"
+    >
+      Submit
+    </button>
+  )}
+</td>
 
                 </tr>
               ))}
@@ -392,7 +459,85 @@ const FacultyAssignments = () => {
 
         </div>
       )}
+      {submitModal && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center">
 
+    <div className="bg-white p-6 rounded-xl w-[420px]">
+
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-lg font-semibold">
+          Submit Assignment
+        </h2>
+        <button onClick={()=>setSubmitModal(false)}>✕</button>
+      </div>
+
+      {/* ERROR ONLY */}
+      {submitError && (
+        <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2 mb-3">
+          {submitError}
+        </div>
+      )}
+
+      {/* FILE INPUT */}
+      <div className="border border-dashed border-border rounded-xl p-5 text-center hover:border-primary/50 transition">
+
+  <input
+    type="file"
+    onChange={(e)=>setSubmitFile(e.target.files?.[0] || null)}
+    className="hidden"
+    id="submitUpload"
+  />
+
+  {!submitFile ? (
+    <label htmlFor="submitUpload" className="cursor-pointer flex flex-col items-center gap-2">
+      <div className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 text-primary">
+        ↑
+      </div>
+      <p className="text-sm text-muted-foreground">
+        Click to upload file
+      </p>
+    </label>
+  ) : (
+    <div className="flex items-center justify-between bg-secondary/40 px-4 py-3 rounded-lg">
+      <div className="text-left">
+        <p className="text-sm font-medium">{submitFile.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {(submitFile.size / 1024).toFixed(1)} KB
+        </p>
+      </div>
+      <button
+        onClick={()=>setSubmitFile(null)}
+        className="text-red-600 text-xs hover:underline"
+      >
+        Remove
+      </button>
+    </div>
+  )}
+
+</div>
+
+      {/* ACTIONS */}
+      <div className="flex justify-end gap-3 mt-4">
+        <button
+          onClick={()=>setSubmitModal(false)}
+          className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={submitAssignment}
+          className="px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90"
+        >
+          Submit
+        </button>
+      </div>
+
+    </div>
+
+  </div>
+)}
       {/* DELETE MODAL */}
 
       {deleteId && (

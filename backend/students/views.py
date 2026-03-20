@@ -34,18 +34,27 @@ def login_user(request):
 
         profile = UserProfile.objects.get(user=user)
 
-        return JsonResponse({
-    "success": True,
-    "id": user.id,
-    "username": user.username,
-    "role": profile.role,
-    "message": "Login successful"
-})
+        faculty_id = None
 
-    except Exception:
+        # ✅ ADD THIS BLOCK
+        if profile.role == "faculty":
+            faculty = Faculty.objects.filter(email=user.username).first()
+            if faculty:
+                faculty_id = faculty.id
+
+        return JsonResponse({
+            "success": True,
+            "id": user.id,
+            "username": user.username,
+            "role": profile.role,
+            "faculty_id": faculty_id,   # ✅ NEW FIELD
+            "message": "Login successful"
+        })
+
+    except Exception as e:
         return JsonResponse({
             "success": False,
-            "message": "Server error"
+            "message": str(e)
         }, status=500)
 
 
@@ -159,7 +168,14 @@ def current_faculty(request):
 def courses_api(request):
 
     if request.method == 'GET':
-        courses = Course.objects.all()
+
+        faculty_id = request.GET.get("faculty")
+
+        if faculty_id and str(faculty_id).isdigit():
+            courses = Course.objects.filter(faculty_id=int(faculty_id))
+        else:
+            courses = Course.objects.all()
+
         serializer = CourseSerializer(courses, many=True)
         return Response(serializer.data)
 
@@ -306,7 +322,6 @@ def attendance_api(request):
         except Exception as e:
             return Response({"error": str(e)}, status=400)
 
-            
 @api_view(["GET", "POST"])
 def assignments_api(request):
 
@@ -318,11 +333,7 @@ def assignments_api(request):
 
         assignments = Assignment.objects.all().order_by("-created_at")
 
-        # FILTER BY FACULTY
-        if faculty_id:
-            assignments = assignments.filter(faculty__id=faculty_id)
-
-        # STUDENT MODE
+        # ---------- STUDENT MODE ----------
         if student_id:
             data = []
 
@@ -345,22 +356,39 @@ def assignments_api(request):
 
             return Response(data)
 
-        # ADMIN / FACULTY VIEW
+        # ---------- ADMIN / FACULTY VIEW ----------
         data = []
 
         for a in assignments:
+
+            status = "Pending"
+
+            # ✅ SAFE faculty check
+            if faculty_id and str(faculty_id).isdigit():
+
+                submission = AssignmentSubmission.objects.filter(
+                    assignment_id=a.id,
+                    faculty_id=int(faculty_id),
+                    submitted_by="faculty"
+                ).first()
+
+                if submission:
+                    status = submission.status
+
             data.append({
                 "id": a.id,
                 "title": a.title,
                 "description": a.description,
                 "due_date": a.due_date,
+                "created_by": a.created_by,
+                "status": status,
                 "faculty": [f.id for f in a.faculty.all()],
                 "faculty_names": [f.name for f in a.faculty.all()],
+                "course": a.course.id if a.course else None,
                 "file_url": a.file.url if a.file else None
             })
 
         return Response(data)
-
 
     # ---------- POST ----------
     if request.method == "POST":
@@ -373,12 +401,16 @@ def assignments_api(request):
             faculty_ids = request.data.getlist("faculty")
             file = request.FILES.get("file")
 
+            created_by = request.data.get("created_by", "admin")
+            course_id = request.data.get("course")
+
             assignment = Assignment.objects.create(
                 title=title,
                 description=description,
                 due_date=due_date,
                 file=file,
-                created_by="admin"
+                created_by=created_by,
+                course_id=course_id if course_id else None
             )
 
             if faculty_ids:
@@ -427,15 +459,15 @@ def assignment_detail(request, id):
 @api_view(["POST"])
 def submit_assignment(request):
 
-    student_id = request.data.get("student")
     assignment_id = request.data.get("assignment")
+    faculty_id = request.data.get("faculty")
     file = request.FILES.get("file")
 
     if not assignment_id:
         return Response({"error": "assignment required"}, status=400)
 
     existing = AssignmentSubmission.objects.filter(
-        student_id=student_id,
+        faculty_id=faculty_id,
         assignment_id=assignment_id
     ).first()
 
@@ -446,13 +478,14 @@ def submit_assignment(request):
         return Response({"message": "Submission updated"})
 
     AssignmentSubmission.objects.create(
-        student_id=student_id,
+        faculty_id=faculty_id,   # ✅ FIXED
         assignment_id=assignment_id,
         file=file,
-        status="Submitted"
+        status="Submitted",
+        submitted_by="faculty"
     )
 
-    return Response({"message": "Assignment submitted successfully"})
+    return Response({"message": "Submitted successfully"})
 @api_view(['GET','POST'])
 def marks_api(request):
 

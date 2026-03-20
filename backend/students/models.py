@@ -67,6 +67,29 @@ class Assignment(models.Model):
 
     file = models.FileField(upload_to="assignments/", null=True, blank=True)
 
+    # ✅ SAFE ADD
+    course = models.ForeignKey(
+        Course,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
+
+    faculty = models.ManyToManyField(Faculty, blank=True)
+
+    created_by = models.CharField(
+        max_length=20,
+        choices=[
+            ("admin", "Admin"),
+            ("faculty", "Faculty")
+        ],
+        default="admin"
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return self.title
     faculty = models.ManyToManyField(Faculty, blank=True)
 
     created_by = models.CharField(
@@ -90,7 +113,12 @@ class AssignmentSubmission(models.Model):
         null=True,
         blank=True
     )
-
+    faculty = models.ForeignKey(   # ✅ ADD THIS
+        Faculty,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True
+    )
     # ✅ NEW (for faculty submissions)
     submitted_by = models.CharField(
         max_length=20,
