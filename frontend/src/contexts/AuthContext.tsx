@@ -65,16 +65,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       const newUser: User = {
-        id: data.id, // safe optional addition
-        username: data.username,
-        role: role as UserRole
-      };
+  id: data.id,
+  username: data.username,
+  role: role as UserRole
+};
 
-      setUser(newUser);
+setUser(newUser);
 
-      localStorage.setItem("user", JSON.stringify(newUser));
+// ✅ KEEP THIS
+localStorage.setItem("user", JSON.stringify(newUser));
 
-      navigate(rolePaths[newUser.role]);
+// ✅ ADD THESE LINES (VERY IMPORTANT)
+localStorage.setItem("username", data.username);
+localStorage.setItem("role", data.role);
+
+// optional but useful
+localStorage.setItem("user_id", data.id);
+
+// ✅ THEN NAVIGATE
+navigate(rolePaths[newUser.role]);
 
     } catch (error: any) {
 

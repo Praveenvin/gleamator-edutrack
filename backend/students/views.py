@@ -4,8 +4,8 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.db import IntegrityError
-from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity,AssignmentSubmission
-from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer, StudentActivitySerializer, AssignmentSubmissionSerializer
+from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity,AssignmentSubmission, Enrollment
+from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer, StudentActivitySerializer, AssignmentSubmissionSerializer, EnrollmentSerializer
 import json
 
 
@@ -127,6 +127,34 @@ def faculty_detail(request, id):
         faculty.delete()
         return Response({"message":"Faculty deleted successfully"})
 
+
+from django.contrib.auth.models import User
+
+@api_view(["GET"])
+def current_faculty(request):
+
+    username = request.GET.get("username")
+
+    try:
+        user = User.objects.get(username=username)
+
+        faculty = Faculty.objects.filter(email=user.email).first()
+
+        if not faculty:
+            return Response({"error": "Faculty not linked"}, status=404)
+
+        return Response({
+            "id": faculty.id,
+            "name": faculty.name,
+            "email": faculty.email,
+            "department": faculty.department,
+            "designation": faculty.designation,
+        })
+
+    except User.DoesNotExist:
+        return Response({"error": "User not found"}, status=404)
+
+        
 @api_view(['GET','POST'])
 def courses_api(request):
 
@@ -204,26 +232,81 @@ def course_detail(request, id):
 @api_view(['GET','POST'])
 def attendance_api(request):
 
+    # ================= GET =================
     if request.method == 'GET':
 
         student_id = request.query_params.get("student")
+        course_id = request.query_params.get("course")
+        date = request.query_params.get("date")
 
+        attendance = Attendance.objects.all()
+
+        # ✅ OPTIONAL FILTERS (no breaking change)
         if student_id:
-            attendance = Attendance.objects.filter(student_id=student_id)
-        else:
-            attendance = Attendance.objects.all()
+            attendance = attendance.filter(student_id=student_id)
+
+        if course_id:
+            attendance = attendance.filter(course_id=course_id)
+
+        if date:
+            attendance = attendance.filter(date=date)
 
         serializer = AttendanceSerializer(attendance, many=True)
         return Response(serializer.data)
 
+
+    # ================= POST (UPSERT) =================
     if request.method == 'POST':
-        serializer = AttendanceSerializer(data=request.data)
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
+        student = request.data.get("student")
+        course = request.data.get("course")
+        date = request.data.get("date")
+        status_val = request.data.get("status")
 
-        return Response(serializer.errors, status=400)
+        # ✅ BASIC VALIDATION (safe)
+        if not student or not course or not date or not status_val:
+            return Response(
+                {"error": "student, course, date, status required"},
+                status=400
+            )
+
+        try:
+            # 🔥 CHECK EXISTING RECORD
+            existing = Attendance.objects.filter(
+                student_id=student,
+                course_id=course,
+                date=date
+            ).first()
+
+            if existing:
+                # ✅ UPDATE (OVERWRITE)
+                existing.status = status_val
+                existing.save()
+
+                return Response({
+                    "message": "Attendance updated successfully",
+                    "id": existing.id,
+                    "status": existing.status
+                })
+
+            else:
+                # ✅ CREATE NEW
+                serializer = AttendanceSerializer(data=request.data)
+
+                if serializer.is_valid():
+                    serializer.save()
+
+                    return Response({
+                        "message": "Attendance created successfully",
+                        "data": serializer.data
+                    })
+
+                return Response(serializer.errors, status=400)
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
+
+            
 @api_view(["GET", "POST"])
 def assignments_api(request):
 
@@ -656,3 +739,51 @@ def student_activity_detail(request,id):
         activity.delete()
 
         return Response({"message":"Deleted"})
+
+
+
+@api_view(["GET","POST"])
+def enrollment_api(request):
+
+    # ---------- GET ----------
+    if request.method == "GET":
+
+        course_id = request.GET.get("course")
+        student_id = request.GET.get("student")
+
+        enrollments = Enrollment.objects.all()
+
+        if course_id:
+            enrollments = enrollments.filter(course_id=course_id)
+
+        if student_id:
+            enrollments = enrollments.filter(student_id=student_id)
+
+        serializer = EnrollmentSerializer(enrollments, many=True)
+        return Response(serializer.data)
+
+    # ---------- POST ----------
+    if request.method == "POST":
+
+        serializer = EnrollmentSerializer(data=request.data)
+
+        if serializer.is_valid():
+            try:
+                serializer.save()
+                return Response(serializer.data)
+            except:
+                return Response({"error":"Already enrolled"}, status=400)
+
+        return Response(serializer.errors, status=400)
+
+        
+@api_view(["DELETE"])
+def enrollment_detail(request, id):
+
+    try:
+        enrollment = Enrollment.objects.get(id=id)
+    except Enrollment.DoesNotExist:
+        return Response({"error":"Not found"}, status=404)
+
+    enrollment.delete()
+    return Response({"message":"Removed successfully"})

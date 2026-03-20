@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial,Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity, AssignmentSubmission
+from .models import Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial,Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity, AssignmentSubmission, Enrollment
 
 
 class StudentSerializer(serializers.ModelSerializer):
@@ -106,3 +106,15 @@ class StudentActivitySerializer(serializers.ModelSerializer):
     class Meta:
         model = StudentActivity
         fields = "__all__"
+
+
+
+class EnrollmentSerializer(serializers.ModelSerializer):
+
+    student_name = serializers.CharField(source='student.name', read_only=True)
+    department = serializers.CharField(source='student.department', read_only=True)
+    year = serializers.IntegerField(source='student.year', read_only=True)
+
+    class Meta:
+        model = Enrollment
+        fields = '__all__'
