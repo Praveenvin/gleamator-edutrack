@@ -56,7 +56,6 @@ class InternalMarksSerializer(serializers.ModelSerializer):
     class Meta:
         model = InternalMarks
         fields = "__all__"
-
 class StudyMaterialSerializer(serializers.ModelSerializer):
 
     course_name = serializers.CharField(
@@ -64,10 +63,14 @@ class StudyMaterialSerializer(serializers.ModelSerializer):
         read_only=True
     )
 
+    faculty_name = serializers.CharField(   # ✅ ADD THIS
+        source="course.faculty.name",
+        read_only=True
+    )
+
     class Meta:
         model = StudyMaterial
         fields = "__all__"
-
 
 class NotificationSerializer(serializers.ModelSerializer):
 

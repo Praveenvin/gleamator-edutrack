@@ -32,7 +32,8 @@ const AdminAssignments = () => {
 
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<Assignment | null>(null);
-
+  const [selectedAssignment, setSelectedAssignment] = useState<number | null>(null);
+  const [facultySubmissions, setFacultySubmissions] = useState<any[]>([]);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
@@ -47,7 +48,19 @@ const AdminAssignments = () => {
     due_date: "",
     faculty: [] as number[],
   });
+  const fetchFacultySubmissions = async (assignmentId: number) => {
+  try {
+    const res = await axios.get(
+      `http://127.0.0.1:8000/api/assignment-submissions/?assignment=${assignmentId}&type=faculty`
+    );
 
+    setFacultySubmissions(res.data);
+    setSelectedAssignment(assignmentId);
+
+  } catch (err) {
+    console.error("Error fetching faculty submissions", err);
+  }
+};
   /* FETCH */
 
   const fetchAssignments = async () => {
@@ -277,7 +290,135 @@ const AdminAssignments = () => {
         </table>
 
       </div>
+            {/* FACULTY SUBMISSIONS */}
 
+<div className="mt-10">
+
+  <div className="flex justify-between items-center mb-4">
+
+    <h2 className="text-lg font-semibold">
+      Faculty Submissions
+    </h2>
+
+    <select
+      className="px-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground shadow-sm 
+      focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary 
+      hover:border-primary/40 transition cursor-pointer"
+      onChange={(e) => fetchFacultySubmissions(Number(e.target.value))}
+      defaultValue=""
+    >
+      <option value="" disabled>Select Assignment</option>
+
+      {assignments.map(a => (
+        <option key={a.id} value={a.id}>
+          {a.title}
+        </option>
+      ))}
+
+    </select>
+
+  </div>
+
+  <div className="bg-card rounded-lg border border-border overflow-hidden">
+
+    <table className="w-full text-sm">
+
+      <thead className="bg-secondary/50">
+        <tr>
+          {["Faculty","Status","File","Date"].map(h=>(
+            <th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+
+      <tbody>
+
+        {facultySubmissions.length === 0 ? (
+          <tr>
+            <td colSpan={4} className="text-center py-6 text-muted-foreground">
+              Select an assignment to view submissions
+            </td>
+          </tr>
+        ) : (
+
+          facultySubmissions.map((f,index)=>(
+
+            <tr
+              key={index}
+              className="border-t border-border hover:bg-secondary/40 transition"
+            >
+
+              <td className="px-4 py-3 font-medium">
+                {f.name}
+              </td>
+
+              <td className="px-4 py-3">
+
+                <span className={`px-2 py-1 text-xs rounded-full ${
+                 f.submitted
+                   ? "bg-green-100 text-green-600"
+                   : "bg-gray-100 text-muted-foreground"
+                }`}>
+                  {f.submitted ? "Submitted" : "Pending"}
+                </span>
+
+              </td>
+
+              <td className="px-4 py-3 flex gap-2">
+
+  {f.submitted && f.file ? (
+    <>
+      <a
+        href={`http://127.0.0.1:8000${f.file}`}
+        target="_blank"
+        className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary"
+      >
+        View
+      </a>
+
+      <a
+        href={`http://127.0.0.1:8000${f.file}`}
+        download
+        className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white"
+      >
+        Download
+      </a>
+    </>
+  ) : (
+    <span className="text-xs text-muted-foreground">
+      Not Available
+    </span>
+  )}
+
+</td>
+
+              <td className="px-4 py-3 text-xs">
+
+  {f.submitted ? (
+    <span className="text-muted-foreground">
+      {new Date(f.submitted_at).toLocaleDateString()}
+    </span>
+  ) : (
+    <span className="text-muted-foreground">-</span>
+  )}
+
+</td>
+
+            </tr>
+
+          ))
+
+        )}
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>
       {/* ADD/EDIT MODAL */}
 
       {showModal && (

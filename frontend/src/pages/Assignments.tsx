@@ -25,9 +25,27 @@ const Assignments = () => {
 
   const [showModal,setShowModal] = useState(false);
   const [selected,setSelected] = useState<Assignment | null>(null);
-
+  const subjectPalette = [
+  "bg-blue-100 text-blue-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-purple-100 text-purple-700",
+  "bg-slate-100 text-slate-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-violet-100 text-violet-700",
+  "bg-zinc-100 text-zinc-700",
+  "bg-sky-100 text-sky-700",
+];
+  const subjectColorMap: Record<string, string> = {};
+  let colorIndex = 0;
   const [file,setFile] = useState<File | null>(null);
-
+  const getSubjectColor = (subject: string) => {
+    if (!subjectColorMap[subject]) {
+      subjectColorMap[subject] =
+        subjectPalette[colorIndex % subjectPalette.length];
+      colorIndex++;
+    }
+    return subjectColorMap[subject];
+  };
   const [message,setMessage] = useState<string | null>(null);
   const [formError,setFormError] = useState<string | null>(null);
 
@@ -42,7 +60,7 @@ const Assignments = () => {
     const formatted = res.data.map((a:any)=>({
       id: a.id,
       title: a.title,
-      subject: a.course,
+      subject: a.subject,
       due: a.due_date,
       status: a.status
     }));
@@ -127,15 +145,25 @@ const Assignments = () => {
                   {a.title}
                 </td>
 
-                <td className="px-4 py-3 text-muted-foreground">
-                  {a.subject}
-                </td>
+                <td className="px-4 py-3">
+  <span
+  className={`px-3 py-1 text-xs rounded-full ${getSubjectColor(a.subject)}`}
+>
+  {a.subject}
+</span>
+</td>
 
                 <td className="px-4 py-3">
-                  <span className={late && !submitted ? "text-red-600 font-medium" : ""}>
-                    {a.due}
-                  </span>
-                </td>
+  <span
+    className={`text-sm ${
+      new Date(a.due) < new Date()
+        ? "text-red-600 font-medium"
+        : "text-muted-foreground"
+    }`}
+  >
+    {a.due}
+  </span>
+</td>
 
                 <td className="px-4 py-3">
                   <span className={`text-xs px-2 py-1 rounded-full ${statusStyle[a.status]}`}>

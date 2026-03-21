@@ -27,7 +27,8 @@ const FacultyAssignments = () => {
   const [message, setMessage] = useState<string | null>(null); 
   const [editing, setEditing] = useState(false);
   const [selected, setSelected] = useState<Assignment | null>(null);
-
+  const [courses, setCourses] = useState<any[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<number[]>([]);
   const [deleteId, setDeleteId] = useState<number | null>(null);
 
   const [file, setFile] = useState<File | null>(null);
@@ -45,7 +46,35 @@ const FacultyAssignments = () => {
   setSubmitModal(true);
   setSubmitError("");    
 };
+  const [selectedAssignment, setSelectedAssignment] = useState<number | null>(null);
+  const [submissionData, setSubmissionData] = useState<any[]>([]);
+  const fetchSubmissions = async (assignmentId: number) => {
+  try {
+    const res = await axios.get(
+      `http://127.0.0.1:8000/api/assignment-submissions/?assignment=${assignmentId}&type=student`
+    );
 
+    setSubmissionData(res.data);
+    setSelectedAssignment(assignmentId);
+
+  } catch (err) {
+    console.error("Error fetching submissions", err);
+  }
+};
+  const fetchCourses = async () => {
+  const facultyId = localStorage.getItem("faculty_id");
+
+  const res = await axios.get(
+    `http://127.0.0.1:8000/api/courses/?faculty=${facultyId}`
+  );
+
+  setCourses(res.data);
+};
+  useEffect(() => {
+  if (myAssignments.length > 0 && !selectedAssignment) {
+    fetchSubmissions(myAssignments[0].id);
+  }
+}, [myAssignments]);
 
   /* FETCH */
 
@@ -65,8 +94,9 @@ const FacultyAssignments = () => {
 };
   useEffect(()=>{
     fetchAssignments();
+    fetchCourses(); 
   },[]);
-
+  
   /* HANDLERS */
 
   const handleChange = (e:any)=>{
@@ -93,10 +123,10 @@ const FacultyAssignments = () => {
 
   const saveAssignment = async () => {
 
-  if (!form.title || !form.due_date) {
-    setFormError("All fields are required");
-    return;
-  }
+  if (!form.title || !form.due_date || selectedCourses.length === 0) {
+  setFormError("All fields including course are required");
+  return;
+}
 
   try {
 
@@ -106,7 +136,8 @@ const FacultyAssignments = () => {
     formData.append("description", form.description);
     formData.append("due_date", form.due_date);
     formData.append("faculty", userId || "");
-    formData.append("created_by", "faculty"); 
+    formData.append("created_by", "faculty");
+    formData.append("course", selectedCourses[0]?.toString());
     if (file) {
       formData.append("file", file);
     }
@@ -118,13 +149,14 @@ const FacultyAssignments = () => {
     }
 
     setShowModal(false);
+    setSelectedCourses([]); 
     fetchAssignments();
 
   } catch {
     setFormError("Error saving assignment");
   }
 };
-const submitAssignment = async () => {
+  const submitAssignment = async () => {
   try {
 
     if (!submitFile) {
@@ -136,7 +168,9 @@ const submitAssignment = async () => {
 
     const formData = new FormData();
     formData.append("assignment", String(currentAssignment?.id));
-    formData.append("faculty", userId || "");           // ✅ FIX
+    selectedCourses.forEach(c => {
+  formData.append("courses", c.toString());
+});          // ✅ FIX
     formData.append("submitted_by", "faculty");         // ✅ FIX
     formData.append("file", submitFile);
 
@@ -327,7 +361,134 @@ const submitAssignment = async () => {
         </div>
 
       </div>
+              {/* STUDENT SUBMISSIONS */}
 
+<div className="mt-8">
+
+  <div className="flex justify-between items-center mb-4">
+
+    <h2 className="text-lg font-semibold">
+      Student Submissions
+    </h2>
+
+    <select
+  className="px-4 py-2.5 rounded-lg border border-border bg-card text-sm text-foreground shadow-sm 
+  focus:outline-none focus:ring-2 focus:ring-primary/40 focus:border-primary 
+  hover:border-primary/40 transition cursor-pointer"
+  onChange={(e) => fetchSubmissions(Number(e.target.value))}
+  defaultValue=""
+>
+  <option value="" disabled>
+    Select Assignment
+  </option>
+
+  {myAssignments.map(a => (
+    <option key={a.id} value={a.id}>
+      {a.title}
+    </option>
+  ))}
+</select>
+
+  </div>
+
+  <div className="bg-card rounded-lg border border-border overflow-hidden">
+
+    <table className="w-full text-sm">
+
+      <thead className="bg-secondary/50">
+        <tr>
+          {["Name","USN","Status","File","Date"].map(h=>(
+            <th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">
+              {h}
+            </th>
+          ))}
+        </tr>
+      </thead>
+
+      <tbody>
+
+        {submissionData.length === 0 ? (
+          <tr>
+            <td colSpan={5} className="text-center py-6 text-muted-foreground">
+              Select an assignment to view submissions
+            </td>
+          </tr>
+        ) : (
+
+          submissionData.map((s,index)=>(
+
+            <tr
+              key={index}
+              className="border-t border-border hover:bg-secondary/40 transition"
+            >
+
+              <td className="px-4 py-3 font-medium">
+                {s.name}
+              </td>
+
+              <td className="px-4 py-3">
+                {s.usn}
+              </td>
+
+              <td className="px-4 py-3">
+
+                <span className={`px-2 py-1 text-xs rounded-full ${
+                  s.submitted
+                    ? "bg-green-100 text-green-600"
+                    : "bg-gray-100 text-muted-foreground"
+                }`}>
+                  {s.submitted ? "Submitted" : "Pending"}
+                </span>
+
+              </td>
+
+              <td className="px-4 py-3 flex gap-2">
+
+                {s.submitted && s.file ? (
+                  <>
+                    <a
+                      href={`http://127.0.0.1:8000${s.file}`}
+                      target="_blank"
+                      className="px-3 py-1.5 text-xs rounded-lg bg-primary/10 text-primary"
+                    >
+                      View
+                    </a>
+
+                    <a
+                      href={`http://127.0.0.1:8000${s.file}`}
+                      download
+                      className="px-3 py-1.5 text-xs rounded-lg bg-primary text-white"
+                    >
+                      Download
+                    </a>
+                  </>
+                ) : (
+                  <span className="text-xs text-muted-foreground">
+                    Not Available
+                  </span>
+                )}
+
+              </td>
+
+              <td className="px-4 py-3 text-muted-foreground text-xs">
+                {s.submitted_at
+                  ? new Date(s.submitted_at).toLocaleDateString()
+                  : "-"}
+              </td>
+
+            </tr>
+
+          ))
+
+        )}
+
+      </tbody>
+
+    </table>
+
+  </div>
+
+</div>
       {/* CREATE / EDIT MODAL */}
 
       {showModal && (
@@ -354,8 +515,40 @@ const submitAssignment = async () => {
 
               <input name="title" placeholder="Title" value={form.title} onChange={handleChange} className="border px-3 py-2 rounded-lg text-sm"/>
 
-              <input type="date" name="due_date" value={form.due_date} onChange={handleChange} className="border px-3 py-2 rounded-lg text-sm"/>
+              <input
+  type="date"
+  value={form.due_date}
+  onChange={(e) => setForm({...form, due_date: e.target.value})}
+  min={new Date().toISOString().split("T")[0]}
+/>
+              <div className="flex flex-col gap-2">
 
+  <label className="text-sm text-muted-foreground">
+    Select Courses
+  </label>
+
+  <div className="flex flex-wrap gap-2">
+
+    {courses.map(c => (
+      <button
+        key={c.id}
+        type="button"
+        onClick={() => {
+          setSelectedCourses([c.id]);   // ✅ only one course
+        }}
+        className={`px-3 py-1 text-xs rounded-full border ${
+          selectedCourses.includes(c.id)
+            ? "bg-primary text-white"
+            : "bg-secondary text-muted-foreground"
+        }`}
+      >
+        {c.course_name}
+      </button>
+    ))}
+
+  </div>
+
+</div>
               {/* UPLOAD */}
               <div className="border border-dashed border-border rounded-xl p-5 text-center hover:border-primary/50 transition">
 

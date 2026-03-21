@@ -7,6 +7,8 @@ interface Material {
   id: number
   title: string
   course: number
+  course_name: string      // ✅ ADD
+  faculty_name: string 
   file: string
   uploaded_at: string
   downloads: number
@@ -18,7 +20,33 @@ const StudyMaterial = () => {
 
   const [materials,setMaterials] = useState<Material[]>([])
   const [loading,setLoading] = useState(true)
+  const subjectPalette = [
+  "bg-blue-100 text-blue-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-purple-100 text-purple-700",
+  "bg-violet-100 text-violet-700",
+  "bg-fuchsia-100 text-fuchsia-700",
+  "bg-cyan-100 text-cyan-700",
+  "bg-sky-100 text-sky-700",
+  "bg-teal-100 text-teal-700",
+  "bg-slate-100 text-slate-700",
+  "bg-gray-100 text-gray-700",
+  "bg-neutral-100 text-neutral-700",
+];
+  const getSubjectColor = (subject: string) => {
+  let hash = 0;
 
+  for (let i = 0; i < subject.length; i++) {
+    hash = subject.charCodeAt(i) + ((hash << 5) - hash);
+  }
+
+  // 🔥 better spread
+  hash = hash ^ (hash >> 16);
+
+  const index = Math.abs(hash) % subjectPalette.length;
+
+  return subjectPalette[index];
+};
   useEffect(()=>{
     fetchMaterials()
   },[])
@@ -93,9 +121,19 @@ const StudyMaterial = () => {
 
               {/* COURSE */}
               <td className="px-6 py-4">
-                <span className="px-3 py-1 text-xs rounded-full bg-secondary text-muted-foreground">
-                  Course {m.course}
-                </span>
+                <div className="flex flex-col">
+
+  <span
+  className={`px-3 py-1 text-xs rounded-full w-fit ${getSubjectColor(m.course_name)}`}
+>
+  {m.course_name}
+</span>
+
+  <span className="text-xs text-muted-foreground mt-1">
+    {m.faculty_name}
+  </span>
+
+</div>
               </td>
 
               {/* DATE */}

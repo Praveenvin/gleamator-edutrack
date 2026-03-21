@@ -4,7 +4,7 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.db import IntegrityError
-from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity,AssignmentSubmission, Enrollment
+from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity,AssignmentSubmission, Enrollment, AssignmentSubmission
 from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer, StudentActivitySerializer, AssignmentSubmissionSerializer, EnrollmentSerializer
 import json
 
@@ -234,7 +234,7 @@ def course_detail(request, id):
         course.delete()
         return Response({"message": "Course deleted successfully"})
 
-@api_view(['GET','POST'])
+@api_view(['GET', 'POST'])
 def attendance_api(request):
 
     # ================= GET =================
@@ -261,7 +261,7 @@ def attendance_api(request):
 
 
     # ================= POST (UPSERT) =================
-    if request.method == 'POST':
+    elif request.method == 'POST':
 
         student = request.data.get("student")
         course = request.data.get("course")
@@ -310,7 +310,6 @@ def attendance_api(request):
 
         except Exception as e:
             return Response({"error": str(e)}, status=400)
-
 @api_view(["GET", "POST"])
 def assignments_api(request):
 
@@ -320,10 +319,21 @@ def assignments_api(request):
         faculty_id = request.GET.get("faculty")
         student_id = request.GET.get("student")
 
+        # ✅ DO NOT FILTER HERE
         assignments = Assignment.objects.all().order_by("-created_at")
 
         # ---------- STUDENT MODE ----------
         if student_id:
+
+            enrolled_courses = Enrollment.objects.filter(
+                student_id=student_id
+            ).values_list("course_id", flat=True)
+
+            # ✅ ONLY FILTER BY COURSE
+            assignments = assignments.filter(
+                course_id__in=enrolled_courses
+            )
+
             data = []
 
             for a in assignments:
@@ -338,6 +348,7 @@ def assignments_api(request):
                 data.append({
                     "id": a.id,
                     "title": a.title,
+                    "subject": a.course.course_name if a.course else "N/A",
                     "due_date": a.due_date,
                     "status": status,
                     "file_url": a.file.url if a.file else None
@@ -352,7 +363,6 @@ def assignments_api(request):
 
             status = "Pending"
 
-            # ✅ SAFE faculty check
             if faculty_id and str(faculty_id).isdigit():
 
                 submission = AssignmentSubmission.objects.filter(
@@ -380,7 +390,7 @@ def assignments_api(request):
         return Response(data)
 
     # ---------- POST ----------
-    if request.method == "POST":
+    elif request.method == "POST":
 
         try:
             title = request.data.get("title")
@@ -393,13 +403,15 @@ def assignments_api(request):
             created_by = request.data.get("created_by", "admin")
             course_id = request.data.get("course")
 
+            print("COURSE RECEIVED:", course_id)
+
             assignment = Assignment.objects.create(
                 title=title,
                 description=description,
                 due_date=due_date,
                 file=file,
                 created_by=created_by,
-                course_id=course_id if course_id else None
+                course_id=int(course_id) if course_id else None
             )
 
             if faculty_ids:
@@ -445,37 +457,131 @@ def assignment_detail(request, id):
 
         assignment.delete()
         return Response({"message": "Assignment deleted successfully"})
+
+@api_view(["GET"])
+def assignment_submissions(request):
+
+    assignment_id = request.GET.get("assignment")
+    view_type = request.GET.get("type", "student")
+
+    # ---------- VALIDATION ----------
+    if not assignment_id:
+        return Response({"error": "assignment id required"}, status=400)
+
+    try:
+        assignment = Assignment.objects.get(id=assignment_id)
+    except Assignment.DoesNotExist:
+        return Response({"error": "Assignment not found"}, status=404)
+
+    # ---------- STUDENT VIEW ----------
+    if view_type == "student":
+
+        students = Student.objects.filter(
+            enrollments__course=assignment.course
+        ).distinct()
+
+        data = []
+
+        for s in students:
+
+            submission = AssignmentSubmission.objects.filter(
+                student_id=s.id,
+                assignment_id=assignment.id
+            ).first()
+
+            data.append({
+                "name": s.name,
+                "usn": s.usn,
+                "submitted": bool(submission),
+                "file": submission.file.url if submission and submission.file else None,
+                "submitted_at": submission.submitted_at if submission else None
+            })
+        data = sorted(data, key=lambda x: not x["submitted"])
+        return Response(data)
+
+    # ---------- FACULTY VIEW ----------
+    elif view_type == "faculty":
+
+        faculties = assignment.faculty.all()
+
+        data = []
+
+        for f in faculties:
+
+            submission = AssignmentSubmission.objects.filter(
+                faculty_id=f.id,
+                assignment_id=assignment.id
+            ).first()
+
+            data.append({
+                "faculty_id": f.id,
+                "name": f.name,
+                "submitted": bool(submission),
+                "file": submission.file.url if submission and submission.file else None,
+                "submitted_at": submission.submitted_at if submission else None
+            })
+        data = sorted(data, key=lambda x: not x["submitted"])
+        return Response(data)
+
+    # ---------- INVALID TYPE ----------
+    return Response({"error": "Invalid type"}, status=400)
 @api_view(["POST"])
 def submit_assignment(request):
 
     assignment_id = request.data.get("assignment")
+    student_id = request.data.get("student")
     faculty_id = request.data.get("faculty")
     file = request.FILES.get("file")
 
+    # ---------- VALIDATION ----------
     if not assignment_id:
         return Response({"error": "assignment required"}, status=400)
 
-    existing = AssignmentSubmission.objects.filter(
-        faculty_id=faculty_id,
-        assignment_id=assignment_id
-    ).first()
+    # ---------- CHECK EXISTING ----------
+    if student_id:
+        existing = AssignmentSubmission.objects.filter(
+            student_id=student_id,
+            assignment_id=assignment_id
+        ).first()
+    else:
+        existing = AssignmentSubmission.objects.filter(
+            faculty_id=faculty_id,
+            assignment_id=assignment_id
+        ).first()
 
+    # ---------- UPDATE ----------
     if existing:
         existing.file = file
         existing.status = "Submitted"
+
+        if student_id:
+            existing.submitted_by = "student"
+        else:
+            existing.submitted_by = "faculty"
+
         existing.save()
+
         return Response({"message": "Submission updated"})
 
-    AssignmentSubmission.objects.create(
-        faculty_id=faculty_id,   # ✅ FIXED
-        assignment_id=assignment_id,
-        file=file,
-        status="Submitted",
-        submitted_by="faculty"
-    )
+    # ---------- CREATE ----------
+    if student_id:
+        AssignmentSubmission.objects.create(
+            student_id=student_id,
+            assignment_id=assignment_id,
+            file=file,
+            status="Submitted",
+            submitted_by="student"
+        )
+    else:
+        AssignmentSubmission.objects.create(
+            faculty_id=faculty_id,
+            assignment_id=assignment_id,
+            file=file,
+            status="Submitted",
+            submitted_by="faculty"
+        )
 
     return Response({"message": "Submitted successfully"})
-
 
 
 @api_view(['GET', 'POST'])

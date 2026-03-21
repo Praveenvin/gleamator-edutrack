@@ -28,6 +28,7 @@ from .views import (
     enrollment_api,
     enrollment_detail,
     messages_api,
+    assignment_submissions,
 )
 
 urlpatterns = [
@@ -58,4 +59,5 @@ urlpatterns = [
     path("current-faculty/", current_faculty),
     path("enrollments/", enrollment_api),
     path("enrollments/<int:id>/", enrollment_detail),
+    path("assignment-submissions/", assignment_submissions),
 ]
