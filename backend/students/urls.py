@@ -27,6 +27,7 @@ from .views import (
     current_faculty,
     enrollment_api,
     enrollment_detail,
+    messages_api,
 )
 
 urlpatterns = [

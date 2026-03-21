@@ -26,12 +26,40 @@ const FacultyDashboard = () => {
   const [courseGraph, setCourseGraph] = useState<any[]>([]);
   const [coursesData, setCoursesData] = useState<any[]>([]);
 
-  const getGrade = (marks: number) => {
-    if (marks >= 22) return "A";
-    if (marks >= 18) return "B";
-    if (marks >= 14) return "C";
+  const getGrade = (s:{IA1:number, IA2:number, FINAL:number}) => {
+
+  const ia1 = s.IA1 || 0;
+  const ia2 = s.IA2 || 0;
+  const final = s.FINAL || 0;
+
+  // ================= FINAL AVAILABLE =================
+  if (final > 0) {
+    if (final >= 90) return "A";
+    if (final >= 75) return "B";
+    if (final >= 60) return "C";
     return "D";
-  };
+  }
+
+  // ================= IA1 + IA2 =================
+  if (ia1 > 0 && ia2 > 0) {
+    const avg = (ia1 + ia2) / 2;
+
+    if (avg >= 35) return "A";
+    if (avg >= 28) return "B";
+    if (avg >= 20) return "C";
+    return "D";
+  }
+
+  // ================= ONLY IA1 =================
+  if (ia1 > 0) {
+    if (ia1 >= 35) return "A";
+    if (ia1 >= 28) return "B";
+    if (ia1 >= 20) return "C";
+    return "D";
+  }
+
+  return "D";
+};
 
   const fetchDashboard = async () => {
     try {
@@ -89,12 +117,30 @@ const FacultyDashboard = () => {
       setStudentPerformance(avgPerformance.slice(0,5));
 
       // ================= GRADE GRAPH =================
-      const gradeCount:any = {};
-      myMarks.forEach((m:any)=>{
-        const g = getGrade(m.marks);
-        gradeCount[g] = (gradeCount[g] || 0) + 1;
-      });
+      // ================= FIXED GRADE GRAPH =================
 
+// ================= FIXED GRADE GRAPH =================
+
+// 1. group by student
+const studentTotals:any = {};
+
+myMarks.forEach((m:any)=>{
+  if(!studentTotals[m.student]){
+    studentTotals[m.student] = { IA1:0, IA2:0, FINAL:0 };
+  }
+
+  studentTotals[m.student][m.exam_type] = m.marks;
+});
+
+// 2. calculate grade per student
+const gradeCount:any = {};
+
+Object.keys(studentTotals).forEach((sid)=>{
+  const s = studentTotals[sid];
+
+  const g = getGrade(s); // ✅ CORRECT
+  gradeCount[g] = (gradeCount[g] || 0) + 1;
+});
       const order = ["A","B","C","D"];
 
       setGraphData(order.map(g=>({
@@ -103,21 +149,59 @@ const FacultyDashboard = () => {
       })));
 
       // ================= COURSE GRAPH =================
-      const coursePerf:any = {};
-      myMarks.forEach((m:any)=>{
-        if(!coursePerf[m.course]) coursePerf[m.course] = [];
-        coursePerf[m.course].push(m.marks);
-      });
+      // ================= FIXED COURSE GRAPH =================
 
-      setCourseGraph(
-        Object.keys(coursePerf).map(cid=>{
-          const arr = coursePerf[cid];
-          return {
-            course:Number(cid),
-            avg:Math.round(arr.reduce((a:number,b:number)=>a+b,0)/arr.length)
-          };
-        })
-      );
+// 1. group by course + student
+const courseStudentMap:any = {};
+
+myMarks.forEach((m:any)=>{
+  if(!courseStudentMap[m.course]){
+    courseStudentMap[m.course] = {};
+  }
+
+  if(!courseStudentMap[m.course][m.student]){
+    courseStudentMap[m.course][m.student] = { IA1:0, IA2:0, FINAL:0 };
+  }
+
+  courseStudentMap[m.course][m.student][m.exam_type] = m.marks;
+});
+
+// 2. calculate avg per course
+const courseAvg:any = {};
+
+Object.keys(courseStudentMap).forEach((cid)=>{
+  const students = courseStudentMap[cid];
+
+  const values:number[] = [];
+
+  Object.keys(students).forEach((sid)=>{
+    const s = students[sid];
+
+    // 🔥 same logic as grading
+    if (s.FINAL > 0) {
+      values.push(s.FINAL);
+    } else if (s.IA1 > 0 && s.IA2 > 0) {
+      values.push((s.IA1 + s.IA2) / 2);
+    } else if (s.IA1 > 0) {
+      values.push(s.IA1);
+    }
+  });
+
+  const avg =
+    values.length > 0
+      ? Math.round(values.reduce((a,b)=>a+b,0) / values.length)
+      : 0;
+
+  courseAvg[cid] = avg;
+});
+
+// 3. set graph
+setCourseGraph(
+  Object.keys(courseAvg).map(cid=>({
+    course:Number(cid),
+    avg:courseAvg[cid]
+  }))
+);
 
     } catch(err){
       console.error(err);

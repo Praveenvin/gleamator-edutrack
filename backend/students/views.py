@@ -57,33 +57,22 @@ def login_user(request):
             "message": str(e)
         }, status=500)
 
-
 @api_view(['GET','POST'])
 def students_api(request):
 
     if request.method == 'GET':
-        students = Student.objects.all()
+
+        course_id = request.GET.get("course")
+
+        if course_id and str(course_id).isdigit():
+            students = Student.objects.filter(
+    enrollments__course_id=int(course_id)
+).distinct()
+        else:
+            students = Student.objects.all()   # ✅ fallback (important)
+
         serializer = StudentSerializer(students, many=True)
         return Response(serializer.data)
-
-    if request.method == 'POST':
-
-        serializer = StudentSerializer(data=request.data)
-
-        if serializer.is_valid():
-
-            try:
-                serializer.save()
-                return Response(serializer.data)
-
-            except IntegrityError:
-                return Response(
-                    {"error": "Student with same USN or Email already exists"},
-                    status=400
-                )
-
-        return Response(serializer.errors, status=400)
-
 @api_view(['GET','POST'])
 def faculty_api(request):
 
@@ -486,23 +475,60 @@ def submit_assignment(request):
     )
 
     return Response({"message": "Submitted successfully"})
-@api_view(['GET','POST'])
+
+
+
+@api_view(['GET', 'POST'])
 def marks_api(request):
 
+    # ================= GET =================
     if request.method == 'GET':
-        marks = InternalMarks.objects.all()
+
+        course_id = request.GET.get("course")
+        student_id = request.GET.get("student")
+
+        if student_id and str(student_id).isdigit():
+            marks = InternalMarks.objects.filter(student_id=int(student_id))
+
+        elif course_id and str(course_id).isdigit():
+            marks = InternalMarks.objects.filter(course_id=int(course_id))
+
+        else:
+            marks = InternalMarks.objects.all()
+
         serializer = InternalMarksSerializer(marks, many=True)
         return Response(serializer.data)
 
+    # ================= POST (UPSERT) =================
     if request.method == 'POST':
-        serializer = InternalMarksSerializer(data=request.data)
 
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data)
+        student = request.data.get("student")
+        course = request.data.get("course")
+        exam_type = request.data.get("exam_type")
+        marks_value = request.data.get("marks")
 
-        return Response(serializer.errors, status=400)
+        # ✅ VALIDATION
+        if not student or not course or not exam_type:
+            return Response(
+                {"error": "student, course, exam_type required"},
+                status=400
+            )
 
+        try:
+            obj, created = InternalMarks.objects.update_or_create(
+                student_id=student,
+                course_id=course,
+                exam_type=exam_type,
+                defaults={"marks": marks_value}
+            )
+
+            return Response({
+                "message": "Created" if created else "Updated",
+                "id": obj.id
+            })
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=400)
 
 @api_view(["GET","POST"])
 def materials_api(request):
@@ -622,28 +648,145 @@ def leave_requests_api(request):
 
         return Response(serializer.errors,status=400)
 
-@api_view(["GET","POST"])
+@api_view(["GET", "POST"])
 def messages_api(request):
 
+    # ================= GET =================
     if request.method == "GET":
 
         messages = Message.objects.all().order_by("-created_at")
-
-        serializer = MessageSerializer(messages,many=True)
-
+        serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 
+    # ================= POST =================
     if request.method == "POST":
 
-        serializer = MessageSerializer(data=request.data)
+        try:
+            sender_id = request.data.get("sender")
+            receiver_username = request.data.get("receiver")
+            course_ids = request.data.get("courses", [])
+            broadcast = str(request.data.get("broadcast", "false")).lower() == "true"
+            subject = request.data.get("subject")
+            body = request.data.get("message")   # ⚠️ IMPORTANT
 
-        if serializer.is_valid():
+            # ---------- VALIDATION ----------
+            if not sender_id or not subject or not body:
+                return Response(
+                    {"error": "sender, subject, message required"},
+                    status=400
+                )
 
-            serializer.save()
+            sender = User.objects.get(id=sender_id)
 
-            return Response(serializer.data)
+            # ================= SINGLE STUDENT =================
+            if receiver_username:
 
-        return Response(serializer.errors,status=400)
+                receiver = User.objects.filter(username=receiver_username).first()
+
+                if not receiver:
+                    return Response({"error": "Receiver not found"}, status=404)
+
+                # student message
+                Message.objects.create(
+                    sender=sender,
+                    receiver=receiver,
+                    subject=subject,
+                    body=body
+                )
+
+                # self copy (IMPORTANT)
+                Message.objects.create(
+                    sender=sender,
+                    receiver=sender,
+                    subject=subject,
+                    body=body
+                )
+
+                return Response({
+                    "message": "Message sent to student"
+                })
+
+            # ================= COURSE BASED =================
+            elif course_ids:
+
+                enrollments = Enrollment.objects.filter(course_id__in=course_ids)
+
+                sent_users = set()
+                count = 0
+
+                # ✅ SELF COPY (IMPORTANT)
+                faculty_msg = Message.objects.create(
+                    sender=sender,
+                    receiver=sender,
+                    subject=subject,
+                    body=body
+                )
+                faculty_msg.courses.add(*course_ids)
+
+                for e in enrollments:
+
+                    student = e.student
+                    user = User.objects.filter(username=student.email).first()
+
+                    if user and user.id not in sent_users:
+
+                        msg = Message.objects.create(
+                            sender=sender,
+                            receiver=user,
+                            subject=subject,
+                            body=body
+                        )
+
+                        msg.courses.add(*course_ids)
+
+                        sent_users.add(user.id)
+                        count += 1
+
+                return Response({
+                    "message": f"Sent to {count} students"
+                })
+
+            # ================= BROADCAST =================
+            elif broadcast:
+
+                students = Student.objects.all()
+                count = 0
+
+                # ✅ SELF COPY
+                Message.objects.create(
+                    sender=sender,
+                    receiver=sender,
+                    subject=subject,
+                    body=body,
+                    is_broadcast=True
+                )
+
+                for s in students:
+
+                    user = User.objects.filter(username=s.email).first()
+
+                    if user:
+                        Message.objects.create(
+                            sender=sender,
+                            receiver=user,
+                            subject=subject,
+                            body=body,
+                            is_broadcast=True
+                        )
+
+                        count += 1
+
+                return Response({
+                    "message": f"Broadcast sent to {count} students"
+                })
+
+            return Response(
+                {"error": "No receiver / course / broadcast specified"},
+                status=400
+            )
+
+        except Exception as e:
+            return Response({"error": str(e)}, status=500)
 
 @api_view(["POST"])
 def change_password(request):

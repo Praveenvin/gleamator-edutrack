@@ -121,11 +121,14 @@ const FacultyProfile = () => {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* LEFT CARD */}
-        <div className="bg-card rounded-xl border border-border p-6 shadow-sm hover:shadow-md transition-all">
+        <div className="bg-card rounded-xl border border-border p-6 
+                shadow-sm hover:shadow-lg hover:-translate-y-1 
+                transition-all duration-300">
 
           <div className="flex flex-col items-center text-center">
 
-            <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center text-primary text-2xl font-bold mb-3">
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 
+                flex items-center justify-center text-primary text-2xl font-bold mb-3 shadow-inner">
               {initials}
             </div>
 
@@ -152,7 +155,8 @@ const FacultyProfile = () => {
               setFormData(profile);
               setShowModal(true);
             }}
-            className="mt-6 w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-primary/90 transition"
+            className="mt-6 w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium 
+           hover:bg-primary/90 hover:shadow-md transition-all duration-200"
           >
             Edit Profile
           </button>
@@ -176,9 +180,15 @@ const FacultyProfile = () => {
               { label: "Joining Date", value: profile.joining_date || "-" },
               { label: "Specialization", value: profile.specialization || "-" },
             ].map(f => (
-              <div key={f.label} className="bg-secondary/30 p-4 rounded-lg">
+              <div
+  key={f.label}
+  className="bg-muted/40 border border-border rounded-lg p-4 
+             hover:bg-muted/60 hover:shadow-sm transition-all duration-200"
+>
                 <p className="text-xs text-muted-foreground">{f.label}</p>
-                <p className="text-sm text-foreground mt-1">{f.value}</p>
+                <p className="text-sm font-medium text-foreground mt-1">
+  {f.value}
+</p>
               </div>
             ))}
 
