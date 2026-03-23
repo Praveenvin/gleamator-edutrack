@@ -39,6 +39,12 @@ const AdminFaculty = () => {
   const [editing,setEditing] = useState(false);
 
   const [deleteId,setDeleteId] = useState<number | null>(null);
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
 
   const [message,setMessage] = useState<string | null>(null);
   const [formError,setFormError] = useState<string | null>(null);
@@ -58,18 +64,40 @@ const AdminFaculty = () => {
     const res = await axios.get(API);
     setFaculty(res.data);
   };
+  useEffect(() => {
+  fetchFaculty()
 
+  const stored = localStorage.getItem("faculty_search_history")
+  if (stored) {
+    setSearchHistory(JSON.parse(stored))
+  }
+}, [])
   useEffect(()=>{
     fetchFaculty();
   },[]);
+  const saveSearch = (value: string) => {
+  if (!value.trim()) return
 
+  let updated = [value, ...searchHistory.filter(v => v !== value)]
+  updated = updated.slice(0, 5)
+
+  setSearchHistory(updated)
+  localStorage.setItem("faculty_search_history", JSON.stringify(updated))
+}
   const handleChange = (e:any)=>{
     setForm({
       ...form,
       [e.target.name]: e.target.value
     });
   };
-
+  const suggestions = faculty
+  .filter(f =>
+    f.name.toLowerCase().includes(search.toLowerCase()) ||
+    f.email.toLowerCase().includes(search.toLowerCase()) ||
+    f.department.toLowerCase().includes(search.toLowerCase()) ||
+    f.designation.toLowerCase().includes(search.toLowerCase())
+  )
+  .slice(0, 5)
   const openAdd = ()=>{
     setEditing(false);
     setFormError(null);
@@ -132,7 +160,38 @@ const AdminFaculty = () => {
       setMessage("Error deleting faculty");
     }
   };
+  const toggleSelect = (id:number)=>{
+  setSelectedIds(prev =>
+    prev.includes(id)
+      ? prev.filter(i => i !== id)
+      : [...prev, id]
+  );
+};
 
+const toggleSelectAll = ()=>{
+  if(selectedIds.length === currentData.length){
+    setSelectedIds([]);
+  } else {
+    setSelectedIds(currentData.map(f => f.id as number));
+  }
+};
+
+const confirmBulkDelete = async ()=>{
+  try{
+    await Promise.all(
+      selectedIds.map(id => axios.delete(`${API}${id}/`))
+    );
+
+    setSelectedIds([]);
+    setBulkDeleteMode(false);
+    fetchFaculty();
+
+    setMessage("Selected faculty deleted successfully");
+
+  }catch{
+    setMessage("Error deleting selected faculty");
+  }
+};
   const handleSort = (field:string)=>{
     if(sortField === field){
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -211,14 +270,124 @@ const AdminFaculty = () => {
 
     <div className="flex flex-wrap items-center gap-4 mb-6">
 
-      <input
-        placeholder="Search faculty..."
-        value={search}
-        onChange={(e)=>setSearch(e.target.value)}
-        className="border border-border px-4 py-2.5 rounded-lg text-sm 
-        hover:border-primary/40 focus:outline-none focus:ring-2 
-        focus:ring-primary/20 transition"
-      />
+      <div className="relative w-[250px]">
+
+  <input
+    placeholder="Search faculty..."
+    value={search}
+    onChange={(e) => {
+  setSearch(e.target.value)
+  setShowDropdown(true)
+}}
+    onFocus={() => {
+  setShowDropdown(true)
+
+  if (!search) return   // allow history when empty
+}}
+    onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        saveSearch(search)
+      }
+    }}
+    className="w-full border border-border px-4 py-2.5 rounded-lg text-sm 
+    hover:border-primary/40 focus:outline-none focus:ring-2 
+    focus:ring-primary/20 transition"
+  />
+
+  {showDropdown && (
+  <div className="absolute w-full bg-white border rounded-lg shadow-lg mt-1 z-50 max-h-60 overflow-y-auto">
+
+    {/* 🔹 HISTORY */}
+    {searchHistory.length > 0 && (
+      <>
+        <p className="text-xs px-3 py-2 text-gray-400 flex justify-between">
+          Recent Searches
+          <span
+            onClick={() => {
+              localStorage.removeItem("faculty_search_history")
+              setSearchHistory([])
+            }}
+            className="cursor-pointer text-red-500 hover:underline"
+          >
+            Clear
+          </span>
+        </p>
+
+        {searchHistory.map((item, i) => (
+          <div
+            key={i}
+            className="flex justify-between items-center px-3 py-2 hover:bg-gray-100 text-sm"
+          >
+            <span
+              onClick={() => {
+                setSearch(item)
+                saveSearch(item)
+              }}
+              className="cursor-pointer"
+            >
+              🕘 {item}
+            </span>
+
+            {/* ❌ DELETE BUTTON */}
+            <span
+              onClick={(e) => {
+                e.stopPropagation()
+                const updated = searchHistory.filter((_, idx) => idx !== i)
+                setSearchHistory(updated)
+                localStorage.setItem("faculty_search_history", JSON.stringify(updated))
+              }}
+              className="text-red-400 hover:text-red-600 cursor-pointer"
+            >
+              ✕
+            </span>
+          </div>
+        ))}
+      </>
+    )}
+
+    {/* 🔹 SUGGESTIONS */}
+    {search && suggestions.map((f, i) => {
+      const highlight = (text: string) => {
+        const index = text.toLowerCase().indexOf(search.toLowerCase())
+        if (index === -1) return text
+
+        return (
+          <>
+            {text.substring(0, index)}
+            <span className="bg-yellow-200 font-semibold">
+              {text.substring(index, index + search.length)}
+            </span>
+            {text.substring(index + search.length)}
+          </>
+        )
+      }
+
+      return (
+        <div
+          key={i}
+          onClick={() => {
+            setSearch(f.name)
+            saveSearch(f.name)
+          }}
+          className="px-3 py-2 hover:bg-primary/10 cursor-pointer text-sm"
+        >
+          🔍 {highlight(f.name)} ({f.department})
+        </div>
+      )
+    })}
+
+    {/* 🔹 EMPTY */}
+    {search && suggestions.length === 0 && (
+      <div className="px-3 py-2 text-gray-400 text-sm">
+        No results found
+      </div>
+    )}
+
+  </div>
+)}
+
+</div>
 
       <select
         value={departmentFilter}
@@ -294,6 +463,41 @@ transition-all duration-200 shadow hover:shadow-md"
 >
 Export All
 </button>
+  {!selectMode ? (
+  <button
+    onClick={()=>{
+      setSelectMode(true);
+      setSelectedIds([]);
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    border border-border bg-background 
+    hover:bg-primary/10 hover:text-primary hover:border-primary/40"
+  >
+    Select
+  </button>
+) : (
+  <button
+    onClick={()=>{
+      setSelectMode(false);
+      setSelectedIds([]);
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    border border-border bg-red-50 text-red-600 
+    hover:bg-red-100"
+  >
+    Cancel Selection
+  </button>
+)}
+
+{selectMode && selectedIds.length > 0 && (
+  <button
+    onClick={()=>setBulkDeleteMode(true)}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    bg-red-600 text-white hover:bg-red-700"
+  >
+    Delete Selected ({selectedIds.length})
+  </button>
+)}
       <button
         onClick={openAdd}
         className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
@@ -310,6 +514,17 @@ Export All
 
         <thead className="bg-secondary/50">
           <tr>
+
+  {selectMode && (
+    <th className="px-4 py-3 text-center">
+      <input
+        type="checkbox"
+        checked={selectedIds.length === currentData.length && currentData.length > 0}
+        onChange={toggleSelectAll}
+      />
+    </th>
+  )}
+
             <th className="px-4 py-3 text-left">ID</th>
             <th onClick={()=>handleSort("name")} className="px-4 py-3 cursor-pointer">
               Name {sortIndicator("name")}
@@ -326,8 +541,28 @@ Export All
         </thead>
 
         <tbody>
+          {currentData.length === 0 && (
+    <tr>
+      <td colSpan={selectMode ? 7 : 6} className="text-center py-4 text-muted-foreground">
+        No faculty found
+      </td>
+    </tr>
+  )}
           {currentData.map((f)=>(
-            <tr key={f.id} className="border-t border-border hover:bg-secondary/40 transition">
+            
+            <tr key={f.id} className={`border-t border-border hover:bg-secondary/40 transition ${
+  selectedIds.includes(f.id || 0) ? "bg-blue-50" : ""
+}`}>
+
+  {selectMode && (
+    <td className="px-4 py-3 text-center">
+      <input
+        type="checkbox"
+        checked={selectedIds.includes(f.id || 0)}
+        onChange={()=>toggleSelect(f.id as number)}
+      />
+    </td>
+  )}
               <td className="px-4 py-3 font-mono-data text-primary">
                 FAC{f.id?.toString().padStart(3,"0")}
               </td>
@@ -477,7 +712,41 @@ transition"
         </div>
       </div>
     )}
+        {bulkDeleteMode && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
 
+    <div className="bg-white rounded-xl p-6 w-[360px] text-center shadow-lg">
+
+      <h2 className="text-lg font-semibold mb-2 text-red-600">
+        Bulk Delete
+      </h2>
+
+      <p className="text-sm text-muted-foreground mb-4">
+        Delete {selectedIds.length} faculty members?
+      </p>
+
+      <div className="flex justify-center gap-4">
+
+        <button
+          onClick={()=>setBulkDeleteMode(false)}
+          className="px-4 py-2 border rounded-lg text-sm"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={confirmBulkDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+        >
+          Delete All
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
   </AdminDashboardLayout>
   );
 };

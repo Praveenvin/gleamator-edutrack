@@ -43,7 +43,9 @@ const AdminStudents = ()=>{
   const [sortOrder,setSortOrder] = useState<"asc" | "desc">("asc");
   const [showModal,setShowModal] = useState(false);
   const [editingStudent,setEditingStudent] = useState<Student | null>(null);
-
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+  const [selectMode, setSelectMode] = useState(false);
   const [deleteId,setDeleteId] = useState<number | null>(null);
   const [message,setMessage] = useState<string | null>(null);
   const [formError,setFormError] = useState<string | null>(null);
@@ -57,7 +59,21 @@ const AdminStudents = ()=>{
     phone:"",
     year:1
   });
+  const toggleSelect = (id:number)=>{
+  setSelectedIds(prev =>
+    prev.includes(id)
+      ? prev.filter(i => i !== id)
+      : [...prev, id]
+  );
+};
 
+const toggleSelectAll = ()=>{
+  if(selectedIds.length === currentData.length){
+    setSelectedIds([]);
+  }else{
+    setSelectedIds(currentData.map(s => s.id));
+  }
+};
   const fetchStudents = async ()=>{
     const res = await axios.get(API);
     setStudents(res.data);
@@ -66,7 +82,22 @@ const AdminStudents = ()=>{
   useEffect(()=>{
     fetchStudents();
   },[]);
+  const confirmBulkDelete = async ()=>{
+  try{
+    await Promise.all(
+      selectedIds.map(id => axios.delete(`${API}${id}/`))
+    );
 
+    setSelectedIds([]);
+    setBulkDeleteMode(false);
+    fetchStudents();
+
+    setMessage("Selected students deleted successfully");
+
+  }catch{
+    setMessage("Error deleting selected students");
+  }
+};
   const filteredStudents = students
 .filter((s)=>{
 
@@ -312,6 +343,42 @@ transition-all duration-200 shadow hover:shadow-md"
 >
 Export All
 </button>
+  {!selectMode ? (
+  <button
+    onClick={() => {
+      setSelectMode(true);
+      setSelectedIds([]);
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    border border-border bg-background 
+    hover:bg-primary/10 hover:text-primary hover:border-primary/40 
+    transition shadow-sm"
+  >
+    Select
+  </button>
+) : (
+  <button
+    onClick={() => {
+      setSelectMode(false);
+      setSelectedIds([]);
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    border border-border bg-red-50 text-red-600 
+    hover:bg-red-100 transition shadow-sm"
+  >
+    Cancel Selection
+  </button>
+)}
+  {selectMode && selectedIds.length > 0 && (
+  <button
+    onClick={()=>setBulkDeleteMode(true)}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    bg-red-600 text-white hover:bg-red-700 
+    transition shadow"
+  >
+    Delete Selected ({selectedIds.length})
+  </button>
+)}
   <button
     onClick={openAddModal}
     className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
@@ -331,7 +398,15 @@ Export All
         <thead className="bg-secondary/50">
 
           <tr>
-
+  {selectMode && (
+  <th className="px-4 py-3 text-center">
+    <input
+      type="checkbox"
+      checked={selectedIds.length === currentData.length && currentData.length > 0}
+      onChange={toggleSelectAll}
+    />
+  </th>
+)}
   <th onClick={()=>handleSort("id")} className="text-left px-4 py-3 cursor-pointer">
     ID {sortIndicator("id")}
   </th>
@@ -369,7 +444,7 @@ Export All
         </thead>
 {currentData.length === 0 && (
 <tr>
-  <td colSpan={8} className="text-center py-4 text-muted-foreground">
+  <td colSpan={selectMode ? 9 : 8} className="text-center py-4 text-muted-foreground">
     No students found
   </td>
 </tr>
@@ -378,7 +453,15 @@ Export All
 
           {currentData.map((s)=>(
             <tr key={s.id} className="border-t border-border hover:bg-secondary/40 transition">
-
+              {selectMode && (
+  <td className="px-4 py-3 text-center">
+    <input
+      type="checkbox"
+      checked={selectedIds.includes(s.id)}
+      onChange={()=>toggleSelect(s.id)}
+    />
+  </td>
+)}
               <td className="px-4 py-3 text-primary">{s.id}</td>
 
               <td className="px-4 py-3">{s.usn}</td>
@@ -475,6 +558,8 @@ Page {currentPage} of {totalPages}
 
 </div>
 </div>
+
+
     {/* Add/Edit Modal */}
 
     {showModal && (
@@ -600,7 +685,7 @@ transition"
       </div>
 
     )}
-
+    
     {/* Delete Confirmation */}
 
     {deleteId && (
@@ -638,9 +723,53 @@ transition"
         </div>
 
       </div>
-
+      
     )}
 
+
+{/* ✅ BULK DELETE MODAL */}
+
+{bulkDeleteMode && (
+
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
+
+    <div className="bg-white rounded-xl p-6 w-[360px] text-center shadow-lg">
+
+      <h2 className="text-lg font-semibold mb-2 text-red-600">
+        Bulk Delete
+      </h2>
+
+      <p className="text-sm text-muted-foreground mb-4">
+        Are you sure you want to delete{" "}
+        <span className="font-semibold text-red-600">
+          {selectedIds.length}
+        </span>{" "}
+        students?
+      </p>
+
+      <div className="flex justify-center gap-4">
+
+        <button
+          onClick={()=>setBulkDeleteMode(false)}
+          className="px-4 py-2 border rounded-lg text-sm"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={confirmBulkDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+        >
+          Delete All
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+
+)}
   </AdminDashboardLayout>
   );
 };

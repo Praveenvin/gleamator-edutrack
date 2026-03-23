@@ -37,6 +37,10 @@ const [deleteId,setDeleteId] = useState<number | null>(null);
 const [message,setMessage] = useState<string | null>(null);
 const [formError,setFormError] = useState<string | null>(null);
 
+const [selectedIds, setSelectedIds] = useState<number[]>([]);
+const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
+const [selectMode, setSelectMode] = useState(false);
+
 const [file,setFile] = useState<File | null>(null);
 
 const [form,setForm] = useState({
@@ -127,7 +131,38 @@ fetchMaterials();
 setFormError(err.response?.data?.error || "Error saving material");
 }
 };
+  const toggleSelect = (id:number)=>{
+  setSelectedIds(prev =>
+    prev.includes(id)
+      ? prev.filter(i => i !== id)
+      : [...prev, id]
+  );
+};
 
+const toggleSelectAll = ()=>{
+  if(selectedIds.length === filtered.length){
+    setSelectedIds([]);
+  } else {
+    setSelectedIds(filtered.map(m => m.id as number));
+  }
+};
+
+const confirmBulkDelete = async ()=>{
+  try{
+    await Promise.all(
+      selectedIds.map(id => axios.delete(`${API}${id}/`))
+    );
+
+    setSelectedIds([]);
+    setBulkDeleteMode(false);
+    fetchMaterials();
+
+    setMessage("Selected materials deleted successfully");
+
+  }catch{
+    setMessage("Error deleting selected materials");
+  }
+};
 /* DELETE */
 
 const confirmDelete = async ()=>{
@@ -164,7 +199,36 @@ value={search}
 onChange={(e)=>setSearch(e.target.value)}
 className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
 />
+{!selectMode ? (
+  <button
+    onClick={()=>{
+      setSelectMode(true);
+      setSelectedIds([]);
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium border border-border bg-background hover:bg-primary/10"
+  >
+    Select
+  </button>
+) : (
+  <button
+    onClick={()=>{
+      setSelectMode(false);
+      setSelectedIds([]);
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium border border-border bg-red-50 text-red-600"
+  >
+    Cancel Selection
+  </button>
+)}
 
+{selectMode && selectedIds.length > 0 && (
+  <button
+    onClick={()=>setBulkDeleteMode(true)}
+    className="px-4 py-2 rounded-lg text-sm font-medium bg-red-600 text-white"
+  >
+    Delete Selected ({selectedIds.length})
+  </button>
+)}
 <button
 onClick={openAdd}
 className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
@@ -182,7 +246,18 @@ Add Material
 
 <thead className="bg-secondary/50">
 <tr>
-{["Title","Course","File","Actions"].map(h=>(
+
+  {selectMode && (
+    <th className="px-4 py-3 text-center">
+      <input
+        type="checkbox"
+        checked={selectedIds.length === filtered.length && filtered.length > 0}
+        onChange={toggleSelectAll}
+      />
+    </th>
+  )}
+
+  {["Title","Course","File","Actions"].map(h=>(
 <th key={h} className="text-left px-4 py-3 text-muted-foreground font-medium">
 {h}
 </th>
@@ -191,9 +266,28 @@ Add Material
 </thead>
 
 <tbody>
+  {filtered.length === 0 && (
+  <tr>
+    <td colSpan={selectMode ? 5 : 4} className="text-center py-4 text-muted-foreground">
+      No materials found
+    </td>
+  </tr>
+)}
 {filtered.map(m=>(
 
-<tr key={m.id} className="border-t border-border hover:bg-secondary/40 transition">
+<tr key={m.id} className={`border-t border-border hover:bg-secondary/40 transition ${
+  selectedIds.includes(m.id || 0) ? "bg-blue-50" : ""
+}`}>
+
+{selectMode && (
+  <td className="px-4 py-3 text-center">
+    <input
+      type="checkbox"
+      checked={selectedIds.includes(m.id || 0)}
+      onChange={()=>toggleSelect(m.id as number)}
+    />
+  </td>
+)}
 
 <td className="px-4 py-3 flex items-center gap-2 font-medium">
 <FileText size={16}/>
@@ -445,7 +539,41 @@ Delete
 </div>
 </div>
 )}
+  {bulkDeleteMode && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
 
+    <div className="bg-white p-6 rounded-xl w-[360px] text-center">
+
+      <h2 className="text-lg font-semibold text-red-600 mb-2">
+        Bulk Delete
+      </h2>
+
+      <p className="text-sm mb-4">
+        Delete {selectedIds.length} materials?
+      </p>
+
+      <div className="flex justify-center gap-4">
+
+        <button
+          onClick={()=>setBulkDeleteMode(false)}
+          className="px-4 py-2 border rounded-lg"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={confirmBulkDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg"
+        >
+          Delete All
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
 </AdminDashboardLayout>
 );
 };

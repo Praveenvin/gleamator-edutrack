@@ -10,7 +10,6 @@ interface Material {
   course_name?: string;
   file: string;
   created_at?: string;
-  downloads: number;
 }
 
 interface Course {
@@ -198,7 +197,7 @@ const res = await axios.get(
 
             <thead>
               <tr className="border-b border-border">
-                {["Title", "Course", "Type", "Date", "Downloads"].map(h=>(
+                {["Title", "Course", "Type", "Date"].map(h=>(
                   <th key={h} className="text-left py-2 text-muted-foreground font-medium">
                     {h}
                   </th>
@@ -232,10 +231,6 @@ const res = await axios.get(
 
                     <td className="py-2.5 text-muted-foreground">
                       {u.created_at?.slice(0,10) || "-"}
-                    </td>
-
-                    <td className="py-2.5">
-                      {u.downloads}
                     </td>
 
                   </tr>

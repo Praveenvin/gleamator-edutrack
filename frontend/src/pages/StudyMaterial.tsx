@@ -11,7 +11,6 @@ interface Material {
   faculty_name: string 
   file: string
   uploaded_at: string
-  downloads: number
 }
 
 const FILE_BASE = "http://127.0.0.1:8000";
@@ -94,7 +93,7 @@ const StudyMaterial = () => {
 
         <thead className="bg-secondary/50">
           <tr>
-            {["Material","Course","Uploaded","Downloads","Actions"].map(h=>(
+            {["Material","Course","Uploaded","Actions"].map(h=>(
               <th key={h} className="text-left px-6 py-3 text-muted-foreground font-medium">
                 {h}
               </th>
@@ -143,11 +142,6 @@ const StudyMaterial = () => {
                   month:"short",
                   year:"numeric"
                 })}
-              </td>
-
-              {/* DOWNLOAD COUNT */}
-              <td className="px-6 py-4 text-muted-foreground font-medium">
-                {m.downloads}
               </td>
 
               {/* ACTIONS */}

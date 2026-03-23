@@ -43,6 +43,10 @@ const AdminCourses = ()=>{
   const [showModal,setShowModal] = useState(false)
   const [editing,setEditing] = useState(false)
 
+  const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [bulkDeleteMode, setBulkDeleteMode] = useState(false)
+  const [selectMode, setSelectMode] = useState(false)
+
   const [deleteId,setDeleteId] = useState<number | null>(null)
 
   const [message,setMessage] = useState<string | null>(null)
@@ -101,7 +105,38 @@ const AdminCourses = ()=>{
     setForm(c)
     setShowModal(true)
   }
+  const toggleSelect = (id:number)=>{
+  setSelectedIds(prev =>
+    prev.includes(id)
+      ? prev.filter(i => i !== id)
+      : [...prev, id]
+  )
+}
 
+const toggleSelectAll = ()=>{
+  if(selectedIds.length === currentData.length){
+    setSelectedIds([])
+  } else {
+    setSelectedIds(currentData.map(c => c.id as number))
+  }
+}
+
+const confirmBulkDelete = async ()=>{
+  try{
+    await Promise.all(
+      selectedIds.map(id => axios.delete(`${API}${id}/`))
+    )
+
+    setSelectedIds([])
+    setBulkDeleteMode(false)
+    fetchCourses()
+
+    setMessage("Selected courses deleted successfully")
+
+  }catch{
+    setMessage("Error deleting selected courses")
+  }
+}
   const saveCourse = async ()=>{
     if(!form.course_name || !form.course_code || !form.department || !form.faculty || !form.semester){
       setFormError("All fields are mandatory")
@@ -257,7 +292,41 @@ const AdminCourses = ()=>{
       >
         Export All
       </button>
+        {!selectMode ? (
+  <button
+    onClick={()=>{
+      setSelectMode(true)
+      setSelectedIds([])
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    border border-border bg-background 
+    hover:bg-primary/10 hover:text-primary hover:border-primary/40"
+  >
+    Select
+  </button>
+) : (
+  <button
+    onClick={()=>{
+      setSelectMode(false)
+      setSelectedIds([])
+    }}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    border border-border bg-red-50 text-red-600 
+    hover:bg-red-100"
+  >
+    Cancel Selection
+  </button>
+)}
 
+{selectMode && selectedIds.length > 0 && (
+  <button
+    onClick={()=>setBulkDeleteMode(true)}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    bg-red-600 text-white hover:bg-red-700"
+  >
+    Delete Selected ({selectedIds.length})
+  </button>
+)}
       <button
         onClick={openAdd}
         className="flex items-center gap-2 bg-primary hover:bg-primary/90 text-white px-5 py-2.5 rounded-lg text-sm font-medium shadow hover:shadow-md transition"
@@ -274,6 +343,16 @@ const AdminCourses = ()=>{
       <table className="w-full text-sm">
         <thead className="bg-secondary/50">
           <tr>
+            {selectMode && (
+    <th className="px-4 py-3 text-center">
+      <input
+        type="checkbox"
+        checked={selectedIds.length === currentData.length && currentData.length > 0}
+        onChange={toggleSelectAll}
+      />
+    </th>
+  )}
+
             <th className="px-4 py-3">Code</th>
             <th onClick={()=>handleSort("course_name")} className="px-4 py-3 cursor-pointer">
               Course Name {sortIndicator("course_name")}
@@ -295,8 +374,26 @@ const AdminCourses = ()=>{
         </thead>
 
         <tbody>
+          {currentData.length === 0 && (
+  <tr>
+    <td colSpan={selectMode ? 7 : 6} className="text-center py-4 text-muted-foreground">
+      No courses found
+    </td>
+  </tr>
+)}
           {currentData.map(c=>(
-            <tr key={c.id} className="border-t border-border hover:bg-secondary/40 transition">
+            <tr key={c.id} className={`border-t border-border hover:bg-secondary/40 transition ${
+  selectedIds.includes(c.id || 0) ? "bg-blue-50" : ""
+}`}>
+              {selectMode && (
+  <td className="px-4 py-3 text-center">
+    <input
+      type="checkbox"
+      checked={selectedIds.includes(c.id || 0)}
+      onChange={()=>toggleSelect(c.id as number)}
+    />
+  </td>
+)}
               <td className="px-4 py-3 font-mono-data text-primary">{c.course_code}</td>
               <td className="px-4 py-3 font-medium">{c.course_name}</td>
               <td className="px-4 py-3">
@@ -522,7 +619,41 @@ const AdminCourses = ()=>{
       </div>
 
     )}
+        {bulkDeleteMode && (
+  <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
 
+    <div className="bg-white rounded-xl p-6 w-[360px] text-center shadow-lg">
+
+      <h2 className="text-lg font-semibold mb-2 text-red-600">
+        Bulk Delete
+      </h2>
+
+      <p className="text-sm text-muted-foreground mb-4">
+        Delete {selectedIds.length} courses?
+      </p>
+
+      <div className="flex justify-center gap-4">
+
+        <button
+          onClick={()=>setBulkDeleteMode(false)}
+          className="px-4 py-2 border rounded-lg text-sm"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={confirmBulkDelete}
+          className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700"
+        >
+          Delete All
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
 
   </AdminDashboardLayout>
   )
