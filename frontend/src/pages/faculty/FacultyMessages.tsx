@@ -1,6 +1,7 @@
 import { FacultyDashboardLayout } from "@/components/FacultyDashboardLayout";
 import { useState, useEffect ,useRef} from "react";
 import axios from "axios";
+import { Search, Clock, X } from "lucide-react";
 
 interface Message {
   id: number;
@@ -33,7 +34,24 @@ const FacultyMessages = () => {
   const [students, setStudents] = useState<any[]>([]);
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
+  const courseColors = [
+  "bg-green-100 text-green-700 border-green-200",
+  "bg-purple-100 text-purple-700 border-purple-200",
+  "bg-orange-100 text-orange-700 border-orange-200",
+  "bg-pink-100 text-pink-700 border-pink-200",
+  "bg-indigo-100 text-indigo-700 border-indigo-200",
+  "bg-yellow-100 text-yellow-700 border-yellow-200",
+  "bg-emerald-100 text-emerald-700 border-emerald-200",
+  "bg-rose-100 text-rose-700 border-rose-200",
+];
 
+const getColor = (name: string) => {
+  let hash = 0
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash)
+  }
+  return courseColors[Math.abs(hash * 7) % courseColors.length]
+}
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
 
@@ -42,7 +60,9 @@ const FacultyMessages = () => {
 
   const [success, setSuccess] = useState("");
   const [error, setError] = useState("");
-
+const [searchHistory, setSearchHistory] = useState<string[]>([])
+const [showDropdown, setShowDropdown] = useState(false)
+const searchRef = useRef<HTMLDivElement>(null)
   // ================= FETCH =================
 
   const fetchMessages = async () => {
@@ -61,8 +81,8 @@ const mapped = res.data
     is_read: m.is_read,
     sender:
       m.sender === facultyId
-        ? "You"
-        : `Student`,
+      ? "You"
+      : m.sender_name || `Student ${m.sender}`,
   }));
 
       setMessages(mapped);
@@ -123,10 +143,42 @@ const mapped = res.data
     setLoadingStudents(false)
   }
 }
+  useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      searchRef.current &&
+      !searchRef.current.contains(event.target as Node)
+    ) {
+      setShowDropdown(false)
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside)
+  return () => document.removeEventListener("mousedown", handleClickOutside)
+}, [])
+  const saveSearch = (value: string) => {
+  if (!value.trim()) return
+
+  let updated = [value, ...searchHistory.filter(v => v !== value)]
+  updated = updated.slice(0, 5)
+
+  setSearchHistory(updated)
+  localStorage.setItem("faculty_message_search_history", JSON.stringify(updated))
+}
+  const suggestions = messages
+  .filter(m =>
+    m.subject.toLowerCase().includes(search.toLowerCase()) ||
+    m.sender.toLowerCase().includes(search.toLowerCase())
+  )
+  .slice(0, 5)
 
   useEffect(() => {
     fetchMessages();
     fetchCourses();
+    const stored = localStorage.getItem("faculty_message_search_history")
+if (stored) {
+  setSearchHistory(JSON.parse(stored))
+}
   }, []);
   useEffect(() => {
   const handleClickOutside = (event: MouseEvent) => {
@@ -206,8 +258,9 @@ const mapped = res.data
 
     // ✅ COURSE BASED
     if (selectedCourses.length > 0) {
-      payload.courses = selectedCourses;
-    }
+  payload.courses = selectedCourses;
+  // 🔥 IMPORTANT
+}
 
     // ✅ BROADCAST
     else {
@@ -247,28 +300,121 @@ const mapped = res.data
         {/* LEFT PANEL */}
         <div className="bg-card border border-border rounded-xl overflow-hidden">
 
-          <div className="p-3 border-b border-border">
-            <input
-              placeholder="Search messages..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-3 py-2 border border-border rounded-md bg-background focus:ring-2 focus:ring-primary outline-none"
-            />
+          <div className="p-3 border-b border-border bg-muted/30">
+            <div ref={searchRef} className="relative">
+
+  <input
+    placeholder="Search messages..."
+    value={search}
+    onChange={(e) => {
+      setSearch(e.target.value)
+      setShowDropdown(true)
+    }}
+    onFocus={() => setShowDropdown(true)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        if (!search.trim()) return
+
+        saveSearch(search)
+        setShowDropdown(false)
+        e.currentTarget.blur()
+      }
+    }}
+     className="w-full px-3 py-2 rounded-md 
+bg-background border border-border 
+hover:border-primary/40 
+focus:outline-none focus:ring-2 focus:ring-primary/20
+transition"
+  style={{ WebkitBoxShadow: "0 0 0 1000px transparent inset" }}
+  />
+
+  {showDropdown && (
+    <div className="absolute w-full bg-white border border-border rounded-xl shadow-lg mt-2 z-50 max-h-64 overflow-y-auto">
+
+      {/* HISTORY */}
+      {!search && searchHistory.length > 0 && (
+        <div className="py-1">
+
+          <div className="flex justify-between px-3 py-2 text-xs text-muted-foreground">
+            <span>Recent Searches</span>
+            <button
+              onClick={() => {
+                localStorage.removeItem("faculty_message_search_history")
+                setSearchHistory([])
+              }}
+              className="hover:text-red-500"
+            >
+              Clear
+            </button>
           </div>
 
-          <div className="max-h-[500px] overflow-y-auto divide-y">
+          {searchHistory.map((item, i) => (
+            <div key={i} className="flex justify-between px-3 py-2 hover:bg-muted/50 group">
+
+              <div
+                onClick={() => {
+                  setSearch(item)
+                  saveSearch(item)
+                  setShowDropdown(false)
+                }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <Clock size={14} />
+                {item}
+              </div>
+
+              <X
+                size={14}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const updated = searchHistory.filter((_, idx) => idx !== i)
+                  setSearchHistory(updated)
+                  localStorage.setItem("faculty_message_search_history", JSON.stringify(updated))
+                }}
+                className="opacity-0 group-hover:opacity-100 cursor-pointer"
+              />
+
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* SUGGESTIONS */}
+      {search && suggestions.map((m, i) => (
+        <div
+          key={i}
+          onClick={() => {
+            setSearch(m.subject)
+            saveSearch(m.subject)
+            setShowDropdown(false)
+          }}
+          className="flex items-center gap-2 px-3 py-2 hover:bg-primary/10 cursor-pointer"
+        >
+          <Search size={14} />
+          {m.subject}
+        </div>
+      ))}
+
+    </div>
+  )}
+
+</div>
+          </div>
+
+          <div className="max-h-[500px] overflow-y-auto space-y-1 p-1">
 
             {filtered.map(m => (
               <button
                 key={m.id}
                 onClick={() => setSelected(m)}
-                className={`w-full text-left px-4 py-3 transition ${
-                  selected?.id === m.id
-                    ? "bg-primary/10 border-l-4 border-primary"
-                    : "hover:bg-primary/5 hover:shadow-sm"
-                }`}
+                className={`w-full text-left px-4 py-3 
+transition-all duration-200 ease-in-out rounded-lg
+${selected?.id === m.id
+  ? "bg-primary/15 shadow-sm"
+  : "hover:bg-muted/40 hover:scale-[1.01]"}
+`}
               >
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center mb-1">
                   <span className={`${!m.is_read ? "font-semibold" : ""}`}>
                     {m.sender}
                   </span>
@@ -277,7 +423,7 @@ const mapped = res.data
                   </span>
                 </div>
 
-                <p className="text-xs text-muted-foreground truncate">
+                <p className="text-xs text-muted-foreground truncate leading-relaxed">
                   {m.subject}
                 </p>
               </button>
@@ -295,7 +441,7 @@ const mapped = res.data
             <h2 className="font-semibold mb-3">Send Message</h2>
 
             {success && (
-  <div className="mb-3 px-3 py-2 rounded-lg bg-green-500/10 text-green-600 text-sm border border-green-500/20 flex items-center justify-between">
+  <div className="mb-3 px-3 py-2 rounded-lg bg-green-100 text-green-700 border border-green-200 flex justify-between items-center text-sm">
 
     <span>{success}</span>
 
@@ -310,7 +456,7 @@ const mapped = res.data
 )}
 
             {error && (
-              <div className="mb-3 px-3 py-2 rounded-lg bg-red-500/10 text-red-500 text-sm border border-red-500/20">
+              <div className="mb-3 px-3 py-2 rounded-lg bg-red-100 text-red-700 border border-red-200 text-sm">
                 {error}
               </div>
             )}
@@ -353,7 +499,7 @@ const mapped = res.data
     .map(c => (
       <span
   key={c.id}
-  className="px-2 py-1 text-xs rounded-md bg-primary/10 text-primary border border-primary/20 flex items-center gap-1"
+  className={`px-2 py-1 text-xs rounded-full border flex items-center gap-1 ${getColor(c.course_code)}`}
 >
   {c.course_code}
 
@@ -413,7 +559,13 @@ const mapped = res.data
             <button
               onClick={sendMessage}
               disabled={sending}
-              className="w-full py-2 rounded-lg bg-primary text-white hover:opacity-90 transition disabled:opacity-50"
+              className="w-full py-2.5 rounded-lg text-sm font-medium
+bg-primary text-white 
+hover:bg-primary/90 
+transition-all duration-200 
+shadow-sm hover:shadow-md 
+active:scale-95 
+disabled:opacity-50"
             >
               {sending ? "Sending..." : "Send Message"}
             </button>
@@ -424,9 +576,10 @@ const mapped = res.data
           <div className="bg-card border border-border rounded-xl p-6 flex flex-col flex-1">
 
             {!selected && (
-              <div className="text-muted-foreground text-center">
-                Select a message
-              </div>
+              <div className="flex flex-col items-center justify-center h-full text-muted-foreground">
+  <p className="text-sm">No message selected</p>
+  <span className="text-xs">Choose a conversation 👈</span>
+</div>
             )}
 
             {selected && (
@@ -439,7 +592,7 @@ const mapped = res.data
                 </div>
 
                 <div className="flex-1">
-                  <div className="bg-muted/50 p-4 rounded-lg">
+                  <div className="bg-muted/40 p-4 rounded-xl border border-border text-sm leading-relaxed shadow-inner">
                     {selected.message}
                   </div>
                 </div>

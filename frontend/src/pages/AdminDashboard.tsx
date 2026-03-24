@@ -22,13 +22,77 @@ const AdminDashboard = () => {
   const [faculty,setFaculty] = useState<any[]>([]);
   const [courses,setCourses] = useState<any[]>([]);
   const [attendance,setAttendance] = useState<any[]>([]);
-
+  const [activeTab, setActiveTab] = useState<"students" | "faculty" | "courses">("students")
   const [deptData,setDeptData] = useState<any[]>([]);
-  const [attendanceAnalytics,setAttendanceAnalytics] = useState<any[]>([]);
+  const [page, setPage] = useState(1)
+  const pageSize = 5
+  const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0]
+    const total = deptData.reduce((sum, d) => sum + d.students, 0)
+    const percent = ((data.value / total) * 100).toFixed(1)
 
+    return (
+      <div className="bg-white border border-border rounded-lg px-3 py-2 shadow-md text-xs">
+        <p className="font-medium">{data.name}</p>
+        <p>{data.value} students</p>
+        <p className="text-muted-foreground">{percent}%</p>
+      </div>
+    )
+  }
+  return null
+}
+       // ✅ SAFE SORT FUNCTION
+const safeSort = (arr:any[]) => {
+  return [...arr].sort((a,b) => {
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+    return dateB - dateA
+  })
+}
+useEffect(() => {
+  setPage(1)
+}, [activeTab])
+  const [attendanceAnalytics,setAttendanceAnalytics] = useState<any[]>([]);
+  const getDeptColor = (dept:string) => {
+  const map:any = {
+    CSE: "bg-blue-100 text-blue-700",
+    ISE: "bg-purple-100 text-purple-700",
+    ECE: "bg-green-100 text-green-700",
+    MECH: "bg-orange-100 text-orange-700",
+    AI: "bg-pink-100 text-pink-700",
+  }
+
+  return map[dept] || "bg-gray-100 text-gray-700"
+}
   const [recentStudents,setRecentStudents] = useState<any[]>([]);
   const [recentCourses,setRecentCourses] = useState<any[]>([]);
+  const [recentFaculty, setRecentFaculty] = useState<any[]>([])
+  const getCurrentData = () => {
+  let data:any[] = []
 
+  if (activeTab === "students") data = students
+  if (activeTab === "faculty") data = faculty
+  if (activeTab === "courses") data = courses
+
+  const sorted = [...data].sort((a,b)=>{
+    const dateA = a.created_at ? new Date(a.created_at).getTime() : 0
+    const dateB = b.created_at ? new Date(b.created_at).getTime() : 0
+    return dateB - dateA
+  })
+
+  const start = (page - 1) * pageSize
+  return sorted.slice(start, start + pageSize)
+}
+
+// ✅ AFTER function
+const currentData = getCurrentData()
+
+const totalPages = Math.ceil(
+  (activeTab === "students" ? students.length :
+   activeTab === "faculty" ? faculty.length :
+   courses.length) / pageSize
+)
   const fetchData = async () => {
 
     try{
@@ -45,9 +109,6 @@ const AdminDashboard = () => {
 
       buildDepartmentChart(studentsRes.data);
       buildAttendanceChart(attendanceRes.data, coursesRes.data);
-
-      setRecentStudents(studentsRes.data.slice(-5).reverse());
-      setRecentCourses(coursesRes.data.slice(-5).reverse());
 
     }
     catch(err){
@@ -201,14 +262,14 @@ const AdminDashboard = () => {
           <PieChart>
 
             <Pie
-              data={deptData}
-              dataKey="students"
-              nameKey="name"
-              cx="50%"
-              cy="50%"
-              outerRadius={100}
-              label
-            >
+  data={deptData}
+  dataKey="students"
+  nameKey="name"
+  cx="50%"
+  cy="50%"
+  outerRadius={100}
+  paddingAngle={2}
+>
 
               {deptData.map((_,i)=>(
                 <Cell key={i} fill={COLORS[i % COLORS.length]}/>
@@ -216,13 +277,41 @@ const AdminDashboard = () => {
 
             </Pie>
 
-            <Tooltip/>
-            <Legend/>
+            <Tooltip content={<CustomTooltip />} />
+          
 
           </PieChart>
 
         </ResponsiveContainer>
+      <div className="flex flex-wrap gap-4 mt-4 justify-center text-xs w-full">
+  {deptData.map((d, i) => {
+    const total = deptData.reduce((sum, item) => sum + item.students, 0)
+    const percent = ((d.students / total) * 100).toFixed(0)
 
+    return (
+      <div
+        key={i}
+        className="flex items-center justify-between gap-6 px-3 py-1.5 rounded-md bg-muted/20 min-w-[120px]"
+      >
+        {/* LEFT SIDE */}
+        <div className="flex items-center gap-2">
+          <span
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: COLORS[i % COLORS.length] }}
+          />
+          <span className="text-muted-foreground">
+            {d.name}
+          </span>
+        </div>
+
+        {/* RIGHT SIDE */}
+        <span className="text-foreground font-medium">
+          {percent}%
+        </span>
+      </div>
+    )
+  })}
+</div>
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6">
@@ -253,82 +342,209 @@ const AdminDashboard = () => {
 
     </div>
 
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className="bg-card rounded-xl border border-border p-6 h-[420px] flex flex-col">
 
-      <div className="bg-card rounded-lg border border-border p-6">
+  {/* 🔹 HEADER */}
+  <div className="flex justify-between items-center mb-4">
 
-        <h2 className="text-base font-medium text-foreground mb-4">
-          Recent Student Registrations
-        </h2>
+    <h2 className="text-base font-medium text-foreground">
+      Recent Registrations
+    </h2>
 
-        <table className="w-full text-sm">
+    <div className="flex gap-2 text-xs">
+      {["students","faculty","courses"].map((tab)=>(
+        <button
+          key={tab}
+          onClick={()=>setActiveTab(tab as any)}
+          className={`px-3 py-1.5 rounded-md transition ${
+            activeTab === tab
+              ? "bg-primary text-white shadow-sm"
+              : "bg-muted hover:bg-muted/70"
+          }`}
+        >
+          {tab.charAt(0).toUpperCase() + tab.slice(1)}
+        </button>
+      ))}
+    </div>
 
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left py-2 text-muted-foreground font-medium">ID</th>
-              <th className="text-left py-2 text-muted-foreground font-medium">Name</th>
-              <th className="text-left py-2 text-muted-foreground font-medium">Dept</th>
-              <th className="text-left py-2 text-muted-foreground font-medium">Year</th>
+  </div>
+
+  <div className="flex-1 overflow-auto">
+
+  <table className="w-full text-sm table-fixed">
+
+    <thead className="sticky top-0 bg-card z-10">
+      <tr className="border-b border-border text-muted-foreground">
+
+        <th className="w-[15%] text-left py-2">ID</th>
+
+        <th className="w-[25%] text-left py-2">Name</th>
+
+        <th className="w-[15%] text-left py-2">Dept</th>
+
+        <th className="w-[20%] text-center py-2">
+          {activeTab === "faculty" ? "Designation" :
+           activeTab === "courses" ? "Semester" : "Year"}
+        </th>
+
+        <th className="w-[25%] text-left py-2">Date</th>
+
+      </tr>
+    </thead>
+
+    <tbody className="text-sm">
+
+      {currentData.map((item) => {
+
+        if (activeTab === "students") {
+          const s = item
+          return (
+            <tr key={s.id} className="border-b border-border hover:bg-muted/30 transition">
+
+              <td className="py-2.5 text-primary font-medium">
+                {s.id}
+              </td>
+
+              <td className="py-2.5 truncate">
+                {s.name}
+              </td>
+
+              <td className="py-2.5">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${getDeptColor(s.department)}`}>
+                  {s.department}
+                </span>
+              </td>
+
+              <td className="py-2.5 text-center tabular-nums">
+                {s.year}
+              </td>
+
+              <td className="py-2.5 text-muted-foreground">
+                {s.created_at
+                  ? new Date(s.created_at).toLocaleDateString()
+                  : "—"}
+              </td>
+
             </tr>
-          </thead>
+          )
+        }
 
-          <tbody>
+        if (activeTab === "faculty") {
+          const f = item
+          return (
+            <tr key={f.id} className="border-b border-border hover:bg-muted/30 transition">
 
-            {recentStudents.map((s)=>(
-              <tr key={s.id} className="border-b border-border last:border-0">
+              <td className="py-2.5 text-primary font-medium">
+                FAC{f.id?.toString().padStart(3,"0")}
+              </td>
 
-                <td className="py-2.5 font-mono-data text-primary">{s.id}</td>
-                <td className="py-2.5 text-foreground">{s.name}</td>
-                <td className="py-2.5 text-muted-foreground">{s.department}</td>
-                <td className="py-2.5 text-muted-foreground">{s.year}</td>
+              <td className="py-2.5 truncate">
+                {f.name}
+              </td>
 
-              </tr>
-            ))}
+              <td className="py-2.5">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${getDeptColor(f.department)}`}>
+                  {f.department}
+                </span>
+              </td>
 
-          </tbody>
+              <td className="py-2.5 text-left truncate max-w-[140px]">
+                {f.designation}
+              </td>
 
-        </table>
+              <td className="py-2.5 text-muted-foreground">
+                {f.created_at
+                  ? new Date(f.created_at).toLocaleDateString()
+                  : "—"}
+              </td>
 
-      </div>
-
-      <div className="bg-card rounded-lg border border-border p-6">
-
-        <h2 className="text-base font-medium text-foreground mb-4">
-          Recent Course Updates
-        </h2>
-
-        <table className="w-full text-sm">
-
-          <thead>
-            <tr className="border-b border-border">
-              <th className="text-left py-2 text-muted-foreground font-medium">Code</th>
-              <th className="text-left py-2 text-muted-foreground font-medium">Course</th>
-              <th className="text-left py-2 text-muted-foreground font-medium">Department</th>
-              <th className="text-left py-2 text-muted-foreground font-medium">Semester</th>
             </tr>
-          </thead>
+          )
+        }
 
-          <tbody>
+        if (activeTab === "courses") {
+          const c = item
+          return (
+            <tr key={c.id} className="border-b border-border hover:bg-muted/30 transition">
 
-            {recentCourses.map((c)=>(
-              <tr key={c.id} className="border-b border-border last:border-0">
+              <td className="py-2.5 text-primary font-medium">
+                {c.course_code}
+              </td>
 
-                <td className="py-2.5 font-mono-data text-primary">{c.course_code}</td>
-                <td className="py-2.5 text-foreground">{c.course_name}</td>
-                <td className="py-2.5 text-muted-foreground">{c.department}</td>
-                <td className="py-2.5 text-muted-foreground">{c.semester}</td>
+              <td className="py-2.5 truncate">
+                {c.course_name}
+              </td>
 
-              </tr>
-            ))}
+              <td className="py-2.5">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${getDeptColor(c.department)}`}>
+                  {c.department}
+                </span>
+              </td>
 
-          </tbody>
+              <td className="py-2.5 text-center tabular-nums">
+                {c.semester}
+              </td>
 
-        </table>
+              <td className="py-2.5 text-muted-foreground">
+                {c.created_at
+                  ? new Date(c.created_at).toLocaleDateString()
+                  : "—"}
+              </td>
 
-      </div>
+            </tr>
+          )
+        }
+
+      })}
+
+    </tbody>
+
+  </table>
+
+  {/* 🔥 PAGINATION (MATCHED WITH FACULTY PAGE) */}
+  <div className="flex justify-between items-center mt-4">
+
+    <p className="text-sm text-muted-foreground">
+      Page {page} of {totalPages}
+    </p>
+
+    <div className="flex gap-2">
+
+      <button
+        onClick={()=>setPage(p=>Math.max(p-1,1))}
+        disabled={page===1}
+        className={`px-4 py-2 rounded-lg text-sm font-medium 
+        flex items-center gap-1 border transition-all duration-200
+
+        ${page===1
+          ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+          : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md"
+        }`}
+      >
+        ← Prev
+      </button>
+
+      <button
+        onClick={()=>setPage(p=>Math.min(p+1,totalPages))}
+        disabled={page===totalPages}
+        className={`px-4 py-2 rounded-lg text-sm font-medium 
+        flex items-center gap-1 border transition-all duration-200
+
+        ${page===totalPages
+          ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+          : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md"
+        }`}
+      >
+        Next →
+      </button>
 
     </div>
 
+  </div>
+
+</div>
+
+</div>
   </AdminDashboardLayout>
 
   );

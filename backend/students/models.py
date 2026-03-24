@@ -3,13 +3,14 @@ from django.contrib.auth.models import User
 
 
 class Student(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True) 
     name = models.CharField(max_length=100)
     usn = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=50)
     email = models.EmailField(unique=True)
     phone = models.CharField(max_length=15)
     year = models.IntegerField()
-
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     def __str__(self):
         return self.name
 
@@ -28,21 +29,23 @@ class UserProfile(models.Model):
         return f"{self.user.username} - {self.role}"
 
 class Faculty(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=100)
     email = models.EmailField(unique=True)
     department = models.CharField(max_length=100)
     designation = models.CharField(max_length=100)
-
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     def __str__(self):
         return self.name
 
 class Course(models.Model):
+
     course_name = models.CharField(max_length=100)
     course_code = models.CharField(max_length=20, unique=True)
     department = models.CharField(max_length=50)
     faculty = models.ForeignKey(Faculty, on_delete=models.SET_NULL, null=True)
     semester = models.IntegerField()
-
+    created_at = models.DateTimeField(auto_now_add=True, null=True, blank=True)
     def __str__(self):
         return self.course_name
 

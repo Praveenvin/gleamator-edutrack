@@ -1,8 +1,7 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { Pencil, Trash2, Plus, X } from "lucide-react";
-
+import { Pencil, Trash2, Plus, X, Search, Clock } from "lucide-react";
 interface Assignment {
   id: number;
   title: string;
@@ -41,7 +40,9 @@ const AdminAssignments = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
-
+  const [searchHistory, setSearchHistory] = useState<string[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
   const [selectAll, setSelectAll] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
@@ -81,7 +82,42 @@ const AdminAssignments = () => {
     fetchAssignments();
     fetchFaculty();
   }, []);
+  useEffect(() => {
+  fetchAssignments()
+  fetchFaculty()
 
+  const stored = localStorage.getItem("assignment_search_history")
+  if (stored) {
+    setSearchHistory(JSON.parse(stored))
+  }
+}, [])
+  useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      searchRef.current &&
+      !searchRef.current.contains(event.target as Node)
+    ) {
+      setShowDropdown(false)
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside)
+  return () => document.removeEventListener("mousedown", handleClickOutside)
+}, [])
+  const saveSearch = (value: string) => {
+  if (!value.trim()) return
+
+  let updated = [value, ...searchHistory.filter(v => v !== value)]
+  updated = updated.slice(0, 5)
+
+  setSearchHistory(updated)
+  localStorage.setItem("assignment_search_history", JSON.stringify(updated))
+}
+  const suggestions = assignments
+  .filter(a =>
+    a.title.toLowerCase().includes(search.toLowerCase())
+  )
+  .slice(0, 5)
   /* FILTER */
 
   const filtered = assignments.filter(a =>
@@ -240,12 +276,101 @@ const confirmBulkDelete = async ()=>{
 
       <div className="flex flex-wrap items-center gap-4 mb-6">
 
-        <input
-          placeholder="Search assignments..."
-          value={search}
-          onChange={(e)=>setSearch(e.target.value)}
-          className="border border-border px-4 py-2.5 rounded-lg text-sm hover:border-primary/40 focus:outline-none focus:ring-2 focus:ring-primary/20 transition"
-        />
+        <div ref={searchRef} className="relative w-[250px]">
+
+  <input
+    placeholder="Search assignments..."
+    value={search}
+    onChange={(e) => {
+      setSearch(e.target.value)
+      setShowDropdown(true)
+    }}
+    onFocus={() => setShowDropdown(true)}
+    onKeyDown={(e) => {
+      if (e.key === "Enter") {
+        if (!search.trim()) return
+
+        saveSearch(search)
+        setShowDropdown(false)
+        e.currentTarget.blur()
+      }
+    }}
+    className="w-full border border-border px-4 py-2.5 rounded-xl text-sm 
+    hover:border-primary/40 focus:outline-none focus:ring-2 
+    focus:ring-primary/20 transition shadow-sm"
+  />
+
+  {showDropdown && (
+    <div className="absolute w-full bg-white border border-border rounded-xl shadow-lg mt-2 z-50 max-h-64 overflow-y-auto">
+
+      {/* HISTORY */}
+      {!search && searchHistory.length > 0 && (
+        <div className="py-1">
+
+          <div className="flex justify-between px-3 py-2 text-xs text-muted-foreground">
+            <span>Recent Searches</span>
+            <button
+              onClick={() => {
+                localStorage.removeItem("assignment_search_history")
+                setSearchHistory([])
+              }}
+              className="hover:text-red-500"
+            >
+              Clear
+            </button>
+          </div>
+
+          {searchHistory.map((item, i) => (
+            <div key={i} className="flex justify-between px-3 py-2 hover:bg-muted/50 group">
+
+              <div
+                onClick={() => {
+                  setSearch(item)
+                  saveSearch(item)
+                  setShowDropdown(false)
+                }}
+                className="flex items-center gap-2 cursor-pointer"
+              >
+                <Clock size={14} />
+                {item}
+              </div>
+
+              <X
+                size={14}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const updated = searchHistory.filter((_, idx) => idx !== i)
+                  setSearchHistory(updated)
+                  localStorage.setItem("assignment_search_history", JSON.stringify(updated))
+                }}
+                className="opacity-0 group-hover:opacity-100 cursor-pointer"
+              />
+
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* SUGGESTIONS */}
+      {search && suggestions.map((a, i) => (
+        <div
+          key={i}
+          onClick={() => {
+            setSearch(a.title)
+            saveSearch(a.title)
+            setShowDropdown(false)
+          }}
+          className="flex items-center gap-2 px-3 py-2 hover:bg-primary/10 cursor-pointer"
+        >
+          <Search size={14} />
+          {a.title}
+        </div>
+      ))}
+
+    </div>
+  )}
+
+</div>
         {!selectMode ? (
   <button
     onClick={()=>{

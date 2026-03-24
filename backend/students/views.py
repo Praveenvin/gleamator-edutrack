@@ -57,7 +57,7 @@ def login_user(request):
             "message": str(e)
         }, status=500)
 
-@api_view(['GET','POST'])
+@api_view(['GET', 'POST'])
 def students_api(request):
 
     if request.method == 'GET':
@@ -66,14 +66,24 @@ def students_api(request):
 
         if course_id and str(course_id).isdigit():
             students = Student.objects.filter(
-    enrollments__course_id=int(course_id)
-).distinct()
+                enrollments__course_id=int(course_id)
+            ).distinct()
         else:
-            students = Student.objects.all()   # ✅ fallback (important)
+            students = Student.objects.all()   # ✅ fallback
 
         serializer = StudentSerializer(students, many=True)
         return Response(serializer.data)
-@api_view(['GET','POST'])
+
+    # (optional POST if you use it later)
+    if request.method == 'POST':
+        serializer = StudentSerializer(data=request.data)
+
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+
+        return Response(serializer.errors, status=400)
+@api_view(['GET', 'POST'])
 def faculty_api(request):
 
     if request.method == 'GET':
@@ -86,7 +96,6 @@ def faculty_api(request):
         serializer = FacultySerializer(data=request.data)
 
         if serializer.is_valid():
-
             try:
                 serializer.save()
                 return Response(serializer.data)
@@ -98,7 +107,6 @@ def faculty_api(request):
                 )
 
         return Response(serializer.errors, status=400)
-
 
 @api_view(["GET","PUT","DELETE"])
 def faculty_detail(request, id):
@@ -760,20 +768,36 @@ def messages_api(request):
     # ================= GET =================
     if request.method == "GET":
 
-        messages = Message.objects.all().order_by("-created_at")
+        user_id = request.GET.get("user")
+
+        if user_id:
+            messages = Message.objects.filter(
+                receiver_id=user_id
+            ) | Message.objects.filter(
+                sender_id=user_id
+            )
+        else:
+            messages = Message.objects.all()
+
+        messages = messages.order_by("-created_at")
         serializer = MessageSerializer(messages, many=True)
         return Response(serializer.data)
 
     # ================= POST =================
-    if request.method == "POST":
+    elif request.method == "POST":
 
         try:
             sender_id = request.data.get("sender")
             receiver_username = request.data.get("receiver")
+
             course_ids = request.data.get("courses", [])
+            course_ids = [int(c) for c in course_ids]
+
+            to_faculty = str(request.data.get("to_faculty", "false")).lower() == "true"
             broadcast = str(request.data.get("broadcast", "false")).lower() == "true"
+
             subject = request.data.get("subject")
-            body = request.data.get("message")   # ⚠️ IMPORTANT
+            body = request.data.get("message")
 
             # ---------- VALIDATION ----------
             if not sender_id or not subject or not body:
@@ -784,23 +808,30 @@ def messages_api(request):
 
             sender = User.objects.get(id=sender_id)
 
-            # ================= SINGLE STUDENT =================
+            # ============================================================
+            # 1. SINGLE USER MESSAGE
+            # ============================================================
             if receiver_username:
 
                 receiver = User.objects.filter(username=receiver_username).first()
 
                 if not receiver:
+                    receiver = User.objects.filter(email=receiver_username).first()
+
+                if not receiver:
                     return Response({"error": "Receiver not found"}, status=404)
 
-                # student message
-                Message.objects.create(
+                msg = Message.objects.create(
                     sender=sender,
                     receiver=receiver,
                     subject=subject,
                     body=body
                 )
 
-                # self copy (IMPORTANT)
+                if course_ids:
+                    msg.courses.add(*course_ids)
+
+                # self copy
                 Message.objects.create(
                     sender=sender,
                     receiver=sender,
@@ -808,11 +839,58 @@ def messages_api(request):
                     body=body
                 )
 
+                return Response({"message": "Message sent to user"})
+
+            # ============================================================
+            # 2. COURSE → FACULTY
+            # ============================================================
+            elif course_ids and to_faculty:
+
+                courses = Course.objects.filter(id__in=course_ids)
+
+                sent_users = set()
+                count = 0
+
+                self_msg = Message.objects.create(
+                    sender=sender,
+                    receiver=sender,
+                    subject=subject,
+                    body=body
+                )
+                self_msg.courses.add(*course_ids)
+
+                for c in courses:
+
+                    faculty = c.faculty
+                    if not faculty:
+                        continue
+
+                    user = faculty.user   # ✅ FIX
+
+                    if not user:
+                        continue
+
+                    if user.id not in sent_users:
+
+                        msg = Message.objects.create(
+                            sender=sender,
+                            receiver=user,
+                            subject=subject,
+                            body=body
+                        )
+
+                        msg.courses.add(*course_ids)
+
+                        sent_users.add(user.id)
+                        count += 1
+
                 return Response({
-                    "message": "Message sent to student"
+                    "message": f"Sent to {count} faculty"
                 })
 
-            # ================= COURSE BASED =================
+            # ============================================================
+            # 3. COURSE → STUDENTS  🔥 FIXED
+            # ============================================================
             elif course_ids:
 
                 enrollments = Enrollment.objects.filter(course_id__in=course_ids)
@@ -820,7 +898,7 @@ def messages_api(request):
                 sent_users = set()
                 count = 0
 
-                # ✅ SELF COPY (IMPORTANT)
+                # self copy (faculty)
                 faculty_msg = Message.objects.create(
                     sender=sender,
                     receiver=sender,
@@ -832,9 +910,13 @@ def messages_api(request):
                 for e in enrollments:
 
                     student = e.student
-                    user = User.objects.filter(username=student.email).first()
 
-                    if user and user.id not in sent_users:
+                    user = student.user   # 🔥 MAIN FIX
+
+                    if not user:
+                        continue
+
+                    if user.id not in sent_users:
 
                         msg = Message.objects.create(
                             sender=sender,
@@ -852,13 +934,14 @@ def messages_api(request):
                     "message": f"Sent to {count} students"
                 })
 
-            # ================= BROADCAST =================
+            # ============================================================
+            # 4. BROADCAST
+            # ============================================================
             elif broadcast:
 
                 students = Student.objects.all()
                 count = 0
 
-                # ✅ SELF COPY
                 Message.objects.create(
                     sender=sender,
                     receiver=sender,
@@ -869,23 +952,28 @@ def messages_api(request):
 
                 for s in students:
 
-                    user = User.objects.filter(username=s.email).first()
+                    user = s.user   # ✅ FIX
 
-                    if user:
-                        Message.objects.create(
-                            sender=sender,
-                            receiver=user,
-                            subject=subject,
-                            body=body,
-                            is_broadcast=True
-                        )
+                    if not user:
+                        continue
 
-                        count += 1
+                    Message.objects.create(
+                        sender=sender,
+                        receiver=user,
+                        subject=subject,
+                        body=body,
+                        is_broadcast=True
+                    )
+
+                    count += 1
 
                 return Response({
                     "message": f"Broadcast sent to {count} students"
                 })
 
+            # ============================================================
+            # FALLBACK
+            # ============================================================
             return Response(
                 {"error": "No receiver / course / broadcast specified"},
                 status=400
@@ -894,7 +982,6 @@ def messages_api(request):
         except Exception as e:
             return Response({"error": str(e)}, status=500)
 
-@api_view(["POST"])
 def change_password(request):
 
     user = request.user
@@ -950,13 +1037,13 @@ def student_profile(request):
         if not student:
             return Response({"error": "Student not found"}, status=404)
 
-        serializer = StudentSerializer(student)
-        return Response(serializer.data)
+        data = StudentSerializer(student).data
+        data["user_id"] = student.user.id if student.user else None   # ✅ FIX
+
+        return Response(data)
 
     except Exception as e:
         return Response({"error": str(e)}, status=500)
-
-
 @api_view(["GET","POST"])
 def timetable_api(request):
 

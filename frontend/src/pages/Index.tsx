@@ -16,10 +16,9 @@ import {
   Legend
 } from "recharts";
 
-const statusColor: Record<string, string> = {
-  Approved: "text-success bg-success/10",
-  Pending: "text-warning bg-warning/10",
-  Rejected: "text-destructive bg-destructive/10",
+const COLORS = {
+  submitted: "#2563eb",  // strong blue
+  pending: "#f43f5e"     // modern red (not dull)
 };
 
 const STUDENT_ID = 103;
@@ -30,7 +29,19 @@ const Index = () => {
   const [materials,setMaterials] = useState<any[]>([]);
   const [notifications,setNotifications] = useState<any[]>([]);
   const [leaveRequests,setLeaveRequests] = useState<any[]>([]);
+  const shortName = (name: string) => {
+  if (!name) return "";
 
+  // if already short → keep it
+  if (name.length <= 12) return name;
+
+  // convert to initials (DBMS, ML, DS)
+  return name
+    .split(" ")
+    .map(word => word[0])
+    .join("")
+    .toUpperCase();
+};
   const [attendanceData,setAttendanceData] = useState<any[]>([]);
   const [assignmentData,setAssignmentData] = useState<any[]>([]);
 
@@ -148,29 +159,30 @@ const Index = () => {
 
       const assignmentStats:any = {};
 
-      assignments.forEach((a:any)=>{
+assignments.forEach((a:any)=>{
 
-        const subject = a.course || "Subject";
+  // ✅ use proper course name
+  const subject = a.subject || "Unknown";
 
-        if(!assignmentStats[subject]){
-          assignmentStats[subject] = {
-            subject,
-            Submitted:0,
-            Pending:0
-          };
-        }
+  if(!assignmentStats[subject]){
+    assignmentStats[subject] = {
+      subject,
+      Submitted:0,
+      Pending:0
+    };
+  }
 
-        if(a.status === "Submitted"){
-          assignmentStats[subject].Submitted +=1;
-        }
+  if(a.status === "Submitted"){
+    assignmentStats[subject].Submitted +=1;
+  }
 
-        if(a.status === "Pending"){
-          assignmentStats[subject].Pending +=1;
-        }
+  if(a.status === "Pending"){
+    assignmentStats[subject].Pending +=1;
+  }
 
-      });
+});
 
-      setAssignmentData(Object.values(assignmentStats));
+setAssignmentData(Object.values(assignmentStats));
 
       /* ---------- MATERIALS & NOTIFICATIONS ---------- */
 
@@ -246,7 +258,10 @@ const Index = () => {
 
               <CartesianGrid strokeDasharray="3 3"/>
 
-              <XAxis dataKey="subject"/>
+              <XAxis 
+  dataKey="subject"
+  tickFormatter={shortName}
+/>
 
               <YAxis domain={[0,100]}/>
 
@@ -277,38 +292,48 @@ const Index = () => {
           </h2>
 
           <ResponsiveContainer width="100%" height={280}>
+  <BarChart 
+  data={assignmentData} 
+  barCategoryGap="30%"   // spacing between groups
+  barGap={6}            // spacing inside group
+>
 
-            <LineChart data={assignmentData}>
+    <CartesianGrid 
+  strokeDasharray="3 3" 
+  vertical={false} 
+  stroke="#e5e7eb"
+/>
 
-              <CartesianGrid strokeDasharray="3 3"/>
+    <XAxis 
+  dataKey="subject"
+  tickFormatter={shortName}
+/>
+    <YAxis allowDecimals={false} />
 
-              <XAxis dataKey="subject"/>
+    <Tooltip
+  contentStyle={{
+    borderRadius: "10px",
+    border: "none",
+    boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
+  }}
+/>
 
-              <YAxis/>
+    <Legend />
 
-              <Tooltip/>
+   <Bar 
+  dataKey="Submitted" 
+  fill={COLORS.submitted}
+  radius={[8, 8, 0, 0]}
+/>
 
-              <Legend/>
+<Bar 
+  dataKey="Pending" 
+  fill={COLORS.pending}
+  radius={[8, 8, 0, 0]}
+/>
 
-              <Line
-                type="monotone"
-                dataKey="Submitted"
-                stroke="#2563EB"
-                strokeWidth={3}
-                dot={{r:5}}
-              />
-
-              <Line
-                type="monotone"
-                dataKey="Pending"
-                stroke="#F97316"
-                strokeWidth={3}
-                dot={{r:5}}
-              />
-
-            </LineChart>
-
-          </ResponsiveContainer>
+  </BarChart>
+</ResponsiveContainer>
 
         </div>
 

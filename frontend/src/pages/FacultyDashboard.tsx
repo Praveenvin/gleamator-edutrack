@@ -18,16 +18,44 @@ const COLORS = [
 const FacultyDashboard = () => {
 
   const facultyId = Number(localStorage.getItem("faculty_id"));
+  const BarTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0]
 
+    return (
+      <div className="bg-white border border-border rounded-lg px-3 py-2 shadow-md text-xs">
+        <p className="font-medium">{data.payload.name}</p>
+        <p className="text-muted-foreground">
+          Avg Marks: <span className="text-foreground font-medium">{data.value}</span>
+        </p>
+      </div>
+    )
+  }
+  return null
+}
   const [stats, setStats] = useState<any[]>([]);
   const [recentAssignments, setRecentAssignments] = useState<any[]>([]);
   const [studentPerformance, setStudentPerformance] = useState<any[]>([]);
   const [graphData, setGraphData] = useState<any[]>([]);
   const [courseGraph, setCourseGraph] = useState<any[]>([]);
   const [coursesData, setCoursesData] = useState<any[]>([]);
+   const GradeTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0]
+    const total = graphData.reduce((sum, d) => sum + d.count, 0)
+    const percent = ((data.value / total) * 100).toFixed(1)
 
+    return (
+      <div className="bg-white border border-border rounded-lg px-3 py-2 shadow-md text-xs">
+        <p className="font-medium">Grade {data.name}</p>
+        <p>{data.value} students</p>
+        <p className="text-muted-foreground">{percent}%</p>
+      </div>
+    )
+  }
+  return null
+}
   const getGrade = (s:{IA1:number, IA2:number, FINAL:number}) => {
-
   const ia1 = s.IA1 || 0;
   const ia2 = s.IA2 || 0;
   const final = s.FINAL || 0;
@@ -115,11 +143,6 @@ const FacultyDashboard = () => {
       }));
 
       setStudentPerformance(avgPerformance.slice(0,5));
-
-      // ================= GRADE GRAPH =================
-      // ================= FIXED GRADE GRAPH =================
-
-// ================= FIXED GRADE GRAPH =================
 
 // 1. group by student
 const studentTotals:any = {};
@@ -272,7 +295,7 @@ setCourseGraph(
         cx="50%"
         cy="50%"
         outerRadius={100}
-        label   // ✅ same as admin
+        paddingAngle={2}
       >
 
         {graphData.map((_, i) => (
@@ -281,13 +304,40 @@ setCourseGraph(
 
       </Pie>
 
-      <Tooltip />
-      <Legend />
+      <Tooltip content={<GradeTooltip />} />
 
     </PieChart>
 
   </ResponsiveContainer>
+        <div className="flex flex-wrap gap-4 mt-4 justify-center text-xs w-full">
+  {graphData.map((d, i) => {
+    const total = graphData.reduce((sum, item) => sum + item.count, 0)
+    const percent = total ? ((d.count / total) * 100).toFixed(0) : 0
 
+    return (
+      <div
+        key={i}
+        className="flex items-center justify-between gap-6 px-3 py-1.5 rounded-md bg-muted/20 min-w-[100px]"
+      >
+        {/* LEFT */}
+        <div className="flex items-center gap-2">
+          <span
+            className="w-2.5 h-2.5 rounded-full"
+            style={{ backgroundColor: COLORS[i % COLORS.length] }}
+          />
+          <span className="text-muted-foreground">
+            Grade {d.grade}
+          </span>
+        </div>
+
+        {/* RIGHT */}
+        <span className="text-foreground font-medium">
+          {percent}%
+        </span>
+      </div>
+    )
+  })}
+</div>
 </div>
         {/* COURSE GRAPH */}
         <div className="bg-card rounded-lg border border-border p-6">
@@ -295,14 +345,14 @@ setCourseGraph(
             Course Performance
           </h2>
 
-          <ResponsiveContainer width="100%" height={260}>
+          <ResponsiveContainer width="100%" height={320}>
             <BarChart data={courseChart} layout="vertical">
 
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,32%,91%)"/>
 
               <XAxis type="number"/>
               <YAxis type="category" dataKey="name" width={160}/>
-              <Tooltip/>
+              <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
 
               <Bar dataKey="avg" fill="hsl(217,91%,60%)" radius={[0,4,4,0]}/>
 

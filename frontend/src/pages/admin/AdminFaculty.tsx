@@ -1,7 +1,8 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import axios from "axios";
-import { Pencil, Trash2, Plus, X } from "lucide-react";
+import { Search, Clock, X } from "lucide-react";
+import { Pencil, Trash2, Plus } from "lucide-react";
 
 interface Faculty {
   id?: number;
@@ -45,6 +46,7 @@ const AdminFaculty = () => {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [bulkDeleteMode, setBulkDeleteMode] = useState(false);
   const [selectMode, setSelectMode] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null)
 
   const [message,setMessage] = useState<string | null>(null);
   const [formError,setFormError] = useState<string | null>(null);
@@ -70,6 +72,22 @@ const AdminFaculty = () => {
   const stored = localStorage.getItem("faculty_search_history")
   if (stored) {
     setSearchHistory(JSON.parse(stored))
+  }
+}, [])
+  useEffect(() => {
+  const handleClickOutside = (event: MouseEvent) => {
+    if (
+      searchRef.current &&
+      !searchRef.current.contains(event.target as Node)
+    ) {
+      setShowDropdown(false)
+    }
+  }
+
+  document.addEventListener("mousedown", handleClickOutside)
+
+  return () => {
+    document.removeEventListener("mousedown", handleClickOutside)
   }
 }, [])
   useEffect(()=>{
@@ -270,7 +288,7 @@ const confirmBulkDelete = async ()=>{
 
     <div className="flex flex-wrap items-center gap-4 mb-6">
 
-      <div className="relative w-[250px]">
+      <div ref={searchRef} className="relative w-[250px]">
 
   <input
     placeholder="Search faculty..."
@@ -281,112 +299,122 @@ const confirmBulkDelete = async ()=>{
 }}
     onFocus={() => {
   setShowDropdown(true)
-
-  if (!search) return   // allow history when empty
 }}
-    onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
     onKeyDown={(e) => {
-      if (e.key === "Enter") {
-        saveSearch(search)
-      }
-    }}
+  if (e.key === "Enter") {
+    if (!search.trim()) return   // ⭐ ADD THIS
+
+    saveSearch(search)
+    setShowDropdown(false)
+    e.currentTarget.blur()
+  }
+}}
     className="w-full border border-border px-4 py-2.5 rounded-lg text-sm 
     hover:border-primary/40 focus:outline-none focus:ring-2 
     focus:ring-primary/20 transition"
   />
 
   {showDropdown && (
-  <div className="absolute w-full bg-white border rounded-lg shadow-lg mt-1 z-50 max-h-60 overflow-y-auto">
+  <div className="absolute w-full bg-white border border-border rounded-xl shadow-lg mt-2 z-50 max-h-64 overflow-y-auto">
+  {/* 🔹 HISTORY */}
+  {!search && searchHistory.length > 0 && (
+    <div className="py-1">
 
-    {/* 🔹 HISTORY */}
-    {searchHistory.length > 0 && (
-      <>
-        <p className="text-xs px-3 py-2 text-gray-400 flex justify-between">
-          Recent Searches
-          <span
-            onClick={() => {
-              localStorage.removeItem("faculty_search_history")
-              setSearchHistory([])
-            }}
-            className="cursor-pointer text-red-500 hover:underline"
-          >
-            Clear
-          </span>
-        </p>
+      <div className="flex justify-between items-center px-3 py-2 text-xs text-muted-foreground">
+        <span>Recent Searches</span>
+        <button
+          onClick={() => {
+            localStorage.removeItem("faculty_search_history")
+            setSearchHistory([])
+          }}
+          className="hover:text-red-500 transition"
+        >
+          Clear
+        </button>
+      </div>
 
-        {searchHistory.map((item, i) => (
-          <div
-            key={i}
-            className="flex justify-between items-center px-3 py-2 hover:bg-gray-100 text-sm"
-          >
-            <span
-              onClick={() => {
-                setSearch(item)
-                saveSearch(item)
-              }}
-              className="cursor-pointer"
-            >
-              🕘 {item}
-            </span>
-
-            {/* ❌ DELETE BUTTON */}
-            <span
-              onClick={(e) => {
-                e.stopPropagation()
-                const updated = searchHistory.filter((_, idx) => idx !== i)
-                setSearchHistory(updated)
-                localStorage.setItem("faculty_search_history", JSON.stringify(updated))
-              }}
-              className="text-red-400 hover:text-red-600 cursor-pointer"
-            >
-              ✕
-            </span>
-          </div>
-        ))}
-      </>
-    )}
-
-    {/* 🔹 SUGGESTIONS */}
-    {search && suggestions.map((f, i) => {
-      const highlight = (text: string) => {
-        const index = text.toLowerCase().indexOf(search.toLowerCase())
-        if (index === -1) return text
-
-        return (
-          <>
-            {text.substring(0, index)}
-            <span className="bg-yellow-200 font-semibold">
-              {text.substring(index, index + search.length)}
-            </span>
-            {text.substring(index + search.length)}
-          </>
-        )
-      }
-
-      return (
+      {searchHistory.map((item, i) => (
         <div
           key={i}
-          onClick={() => {
-            setSearch(f.name)
-            saveSearch(f.name)
-          }}
-          className="px-3 py-2 hover:bg-primary/10 cursor-pointer text-sm"
+          className="flex items-center justify-between px-3 py-2 hover:bg-muted/50 transition group"
         >
-          🔍 {highlight(f.name)} ({f.department})
+          <div
+            onClick={() => {
+              setSearch(item)
+              saveSearch(item)
+              setShowDropdown(false)
+            }}
+            className="flex items-center gap-2 cursor-pointer flex-1"
+          >
+            <Clock size={14} className="text-muted-foreground" />
+            <span className="text-sm">{item}</span>
+          </div>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              const updated = searchHistory.filter((_, idx) => idx !== i)
+              setSearchHistory(updated)
+              localStorage.setItem("faculty_search_history", JSON.stringify(updated))
+            }}
+            className="opacity-0 group-hover:opacity-100 transition"
+          >
+            <X size={14} className="text-muted-foreground hover:text-red-500" />
+          </button>
         </div>
+      ))}
+
+    </div>
+  )}
+
+  {/* 🔹 SUGGESTIONS */}
+  {search && suggestions.map((f, i) => {
+    const highlight = (text: string) => {
+      const index = text.toLowerCase().indexOf(search.toLowerCase())
+      if (index === -1) return text
+
+      return (
+        <>
+          {text.substring(0, index)}
+          <span className="bg-primary/20 text-primary font-medium px-0.5 rounded">
+            {text.substring(index, index + search.length)}
+          </span>
+          {text.substring(index + search.length)}
+        </>
       )
-    })}
+    }
 
-    {/* 🔹 EMPTY */}
-    {search && suggestions.length === 0 && (
-      <div className="px-3 py-2 text-gray-400 text-sm">
-        No results found
+    return (
+      <div
+        key={i}
+        onClick={() => {
+          setSearch(f.name)
+          saveSearch(f.name)
+          setShowDropdown(false)
+        }}
+        className="flex items-center gap-2 px-3 py-2 hover:bg-primary/10 cursor-pointer transition"
+      >
+        <Search size={14} className="text-muted-foreground" />
+        <span className="text-sm">
+          {highlight(f.name)}{" "}
+          <span className="text-xs text-muted-foreground">
+            ({f.department})
+          </span>
+        </span>
       </div>
-    )}
+      
+    )
+  })}
 
-  </div>
+  {/* 🔹 EMPTY */}
+  {search && suggestions.length === 0 && (
+    <div className="px-3 py-3 text-sm text-muted-foreground text-center">
+      No results found
+    </div>
+  )}
+
+</div>
 )}
-
 </div>
 
       <select

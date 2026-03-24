@@ -8,98 +8,59 @@ interface StudentProfile {
   name: string;
   usn: string;
   department: string;
+  year: number;
+
   email: string;
   phone: string;
-  year: number;
+  address?: string;
+
+  section?: string;
+  cgpa?: string;
+  skills?: string;
+  interests?: string;
+
+  linkedin?: string;
+  github?: string;
 }
 
-const Profile = () => {
+const inputClass =
+  "w-full px-2 py-1.5 rounded-md border border-border bg-background text-sm " +
+  "focus:outline-none focus:ring-1 focus:ring-primary/30 transition";
 
+const cardClass =
+  "bg-card rounded-xl border border-border p-6 shadow-sm hover:shadow-md transition";
+
+const Profile = () => {
   const { user } = useAuth();
 
   const [profile, setProfile] = useState<StudentProfile | null>(null);
   const [edit, setEdit] = useState(false);
 
-  const [password, setPassword] = useState({
-    current: "",
-    new: "",
-    confirm: ""
-  });
-
-  // Fetch profile when user is available
   useEffect(() => {
-    if (user) {
-      fetchProfile();
-    }
+    if (user) fetchProfile();
   }, [user]);
 
   const fetchProfile = async () => {
-
-    if (!user) return;
-
     try {
-
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/student-profile/?username=${user.username}`
+        `http://127.0.0.1:8000/api/student-profile/?username=${user?.username}`
       );
-
       setProfile(res.data);
-
-    }
-    catch (err) {
-      console.error("Profile fetch failed", err);
+    } catch (err) {
+      console.error(err);
     }
   };
 
   const updateProfile = async () => {
-
     if (!profile) return;
 
     try {
-
       await axios.put(
         `http://127.0.0.1:8000/api/students/${profile.id}/`,
         profile
       );
-
       setEdit(false);
-
-    }
-    catch (err) {
-      console.error("Profile update failed", err);
-    }
-  };
-
-  const changePassword = async () => {
-
-    if (!user) return;
-
-    if (password.new !== password.confirm) {
-      alert("Passwords do not match");
-      return;
-    }
-
-    try {
-
-      await axios.post(
-        "http://127.0.0.1:8000/api/change-password/",
-        {
-          username: user.username,
-          current: password.current,
-          new: password.new
-        }
-      );
-
-      alert("Password updated");
-
-      setPassword({
-        current: "",
-        new: "",
-        confirm: ""
-      });
-
-    }
-    catch (err) {
+    } catch (err) {
       console.error(err);
     }
   };
@@ -108,183 +69,144 @@ const Profile = () => {
 
   const initials = profile.name
     .split(" ")
-    .map(n => n[0])
+    .map((n) => n[0])
     .join("")
     .toUpperCase();
 
+  // 🔥 REUSABLE FIELD COMPONENT
+  const renderField = (label: string, key: keyof StudentProfile, isTextarea = false) => (
+    <div className="bg-muted/40 border border-border rounded-lg p-4 hover:bg-muted/60 transition">
+      <p className="text-xs text-muted-foreground">{label}</p>
+
+      {edit ? (
+        isTextarea ? (
+          <textarea
+            value={(profile[key] as string) || ""}
+            onChange={(e) =>
+              setProfile({ ...profile, [key]: e.target.value })
+            }
+            className={inputClass + " mt-1 min-h-[60px] resize-none"}
+          />
+        ) : (
+          <input
+            value={(profile[key] as string) || ""}
+            onChange={(e) =>
+              setProfile({ ...profile, [key]: e.target.value })
+            }
+            className={inputClass + " mt-1"}
+          />
+        )
+      ) : (
+        <p className="text-sm font-medium text-foreground mt-1">
+          {(profile[key] as string) || "-"}
+        </p>
+      )}
+    </div>
+  );
+
   return (
-
     <DashboardLayout>
-
-      <h1 className="text-2xl font-medium text-foreground mb-6">
-        Profile & Settings
+      <h1 className="text-3xl font-semibold text-foreground mb-6">
+        My Profile
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
 
-        {/* PROFILE */}
+        {/* LEFT PROFILE CARD */}
+        <div className={cardClass + " self-start sticky top-6"}>
 
-        <div className="bg-card rounded-lg border border-border p-6">
+          <div className="flex flex-col items-center text-center">
 
-          <div className="flex items-center gap-4 mb-6">
-
-            <div className="h-16 w-16 rounded-full bg-primary flex items-center justify-center text-primary-foreground text-xl font-semibold">
+            <div className="h-20 w-20 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 
+            flex items-center justify-center text-primary text-2xl font-bold mb-3 shadow-inner">
               {initials}
             </div>
 
-            <div>
+            <h2 className="text-lg font-semibold">{profile.name}</h2>
 
-              <h2 className="text-lg font-medium text-foreground">
-                {profile.name}
-              </h2>
+            <p className="text-sm text-muted-foreground">
+              {profile.department}
+            </p>
 
-              <p className="text-sm text-muted-foreground">
-                {profile.department} · Year {profile.year}
-              </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              USN: {profile.usn}
+            </p>
 
-              <p className="text-sm text-muted-foreground">
-                USN: {profile.usn}
-              </p>
-
-            </div>
+            <span className="mt-3 px-3 py-1 text-xs rounded-full bg-primary/10 text-primary">
+              Year {profile.year}
+            </span>
 
           </div>
 
-          <div className="space-y-3">
+          <button
+            onClick={() => setEdit(!edit)}
+            className="mt-6 w-full px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium 
+            hover:bg-primary/90 transition"
+          >
+            {edit ? "Cancel Editing" : "Edit Profile"}
+          </button>
 
-            <div className="flex justify-between py-2 border-b border-border">
+        </div>
 
-              <span className="text-sm text-muted-foreground">
-                Email
-              </span>
+        {/* RIGHT SIDE */}
+        <div className="lg:col-span-2 flex flex-col gap-6">
 
-              {edit ? (
-
-                <input
-                  value={profile.email}
-                  onChange={(e) =>
-                    setProfile({ ...profile, email: e.target.value })
-                  }
-                  className="border rounded px-2 text-sm"
-                />
-
-              ) : (
-
-                <span className="text-sm text-foreground">
-                  {profile.email}
-                </span>
-
-              )}
-
+          {/* BASIC INFO */}
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold mb-4">Basic Information</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {renderField("Name", "name")}
+              {renderField("USN", "usn")}
+              {renderField("Department", "department")}
+              {renderField("Year", "year")}
+              {renderField("Section", "section")}
             </div>
-
-            <div className="flex justify-between py-2 border-b border-border">
-
-              <span className="text-sm text-muted-foreground">
-                Phone
-              </span>
-
-              {edit ? (
-
-                <input
-                  value={profile.phone}
-                  onChange={(e) =>
-                    setProfile({ ...profile, phone: e.target.value })
-                  }
-                  className="border rounded px-2 text-sm"
-                />
-
-              ) : (
-
-                <span className="text-sm font-mono-data text-foreground">
-                  {profile.phone}
-                </span>
-
-              )}
-
-            </div>
-
           </div>
 
-          {edit ? (
+          {/* CONTACT */}
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold mb-4">Contact Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {renderField("Email", "email")}
+              {renderField("Phone", "phone")}
+              {renderField("Address", "address", true)}
+            </div>
+          </div>
 
+          {/* ACADEMIC */}
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold mb-4">Academic Details</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {renderField("CGPA", "cgpa")}
+              {renderField("Skills", "skills", true)}
+              {renderField("Interests", "interests", true)}
+            </div>
+          </div>
+
+          {/* LINKS */}
+          <div className={cardClass}>
+            <h2 className="text-lg font-semibold mb-4">Links</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {renderField("LinkedIn", "linkedin")}
+              {renderField("GitHub", "github")}
+            </div>
+          </div>
+
+          {/* SAVE BUTTON */}
+          {edit && (
             <button
               onClick={updateProfile}
-              className="mt-6 h-10 px-6 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90"
+              className="self-end px-6 py-2 bg-primary text-white rounded-lg text-sm font-medium 
+              hover:bg-primary/90 transition"
             >
               Save Changes
             </button>
-
-          ) : (
-
-            <button
-              onClick={() => setEdit(true)}
-              className="mt-6 h-10 px-6 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90"
-            >
-              Edit Profile
-            </button>
-
           )}
 
         </div>
-
-        {/* PASSWORD */}
-
-        <div className="bg-card rounded-lg border border-border p-6">
-
-          <h2 className="text-base font-medium text-foreground mb-4">
-            Change Password
-          </h2>
-
-          <div className="space-y-4">
-
-            <input
-              type="password"
-              placeholder="Current Password"
-              value={password.current}
-              onChange={(e) =>
-                setPassword({ ...password, current: e.target.value })
-              }
-              className="w-full h-10 px-3 rounded-md border border-border bg-background"
-            />
-
-            <input
-              type="password"
-              placeholder="New Password"
-              value={password.new}
-              onChange={(e) =>
-                setPassword({ ...password, new: e.target.value })
-              }
-              className="w-full h-10 px-3 rounded-md border border-border bg-background"
-            />
-
-            <input
-              type="password"
-              placeholder="Confirm Password"
-              value={password.confirm}
-              onChange={(e) =>
-                setPassword({ ...password, confirm: e.target.value })
-              }
-              className="w-full h-10 px-3 rounded-md border border-border bg-background"
-            />
-
-            <button
-              onClick={changePassword}
-              className="h-10 px-6 bg-primary text-primary-foreground rounded-md text-sm font-medium hover:bg-primary/90"
-            >
-              Update Password
-            </button>
-
-          </div>
-
-        </div>
-
       </div>
-
     </DashboardLayout>
-
   );
-
 };
 
 export default Profile;

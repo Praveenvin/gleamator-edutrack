@@ -106,11 +106,18 @@ const FacultyAttendance = () => {
   // ================= ABSENTEES =================
   const absentees:any = {};
 
-  courses.forEach((c:any)=>{
+courses.forEach((c:any)=>{
+
+  // ✅ get enrolled student IDs for this course
+  const enrolledIds = enrollments
+    .filter((e:any)=> Number(e.course) === Number(c.id))
+    .map((e:any)=> e.student);
+
   const rec = records.filter((r:any)=>
     Number(r.course) === Number(c.id) &&
     r.date === selectedDate &&
-    r.status === "Absent"
+    r.status === "Absent" &&
+    enrolledIds.includes(r.student) // ✅ FIX
   );
 
   rec.forEach((r:any)=>{
@@ -119,6 +126,7 @@ const FacultyAttendance = () => {
     const s = students.find(x=>x.id===r.student);
     if(s) absentees[c.course_name].push(s);
   });
+
 });
 
 const chartData = courses.map((c:any)=>{

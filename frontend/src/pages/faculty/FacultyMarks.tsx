@@ -39,7 +39,33 @@ const FacultyMarks = () => {
   const [uploaded,setUploaded] = useState(false);
 
   // ================= FETCH =================
+  const getGrade = (m: { IA1: number; IA2: number; FINAL: number }) => {
+  let score = 0;
+  let max = 100;
 
+  if (m.FINAL > 0) {
+    score = m.FINAL;
+    max = 100;
+  } else if (m.IA1 > 0 && m.IA2 > 0) {
+    score = (m.IA1 + m.IA2) / 2;
+    max = 40;
+  } else if (m.IA1 > 0) {
+    score = m.IA1;
+    max = 40;
+  } else {
+    return { grade: "-", color: "bg-gray-100 text-gray-600" };
+  }
+
+  const percent = (score / max) * 100;
+
+  if (percent >= 85) return { grade: "A+", color: "bg-purple-100 text-purple-700" };
+  if (percent >= 75) return { grade: "A", color: "bg-green-100 text-green-700" };
+  if (percent >= 65) return { grade: "B", color: "bg-blue-100 text-blue-700" };
+  if (percent >= 55) return { grade: "C", color: "bg-yellow-100 text-yellow-700" };
+  if (percent >= 50) return { grade: "D", color: "bg-orange-100 text-orange-700" };
+
+  return { grade: "F", color: "bg-red-100 text-red-700" };
+};
   const fetchCourses = async ()=>{
     const facultyId = localStorage.getItem("faculty_id");
     const res = await axios.get(COURSES_API,{ params:{ faculty:facultyId } });
@@ -297,10 +323,23 @@ const pass = evaluated
       <div className="flex gap-3 mb-6">
 
   <select
-    value={selectedCourse ?? ""}
-    onChange={(e)=>setSelectedCourse(Number(e.target.value))}
-    className="border px-3 py-2 rounded-lg"
-  >
+  value={selectedCourse ?? ""}
+  onChange={(e) => setSelectedCourse(Number(e.target.value))}
+  className="
+    px-3 py-2 rounded-md
+    bg-background
+    border border-border
+    text-foreground text-sm
+    transition-all duration-200
+
+    hover:bg-muted/40
+    hover:border-primary/40
+
+    focus:outline-none
+    focus:ring-2 focus:ring-primary/40
+    focus:border-primary
+  "
+>
     {courses.map(c=>(
       <option key={c.id} value={c.id}>
         {c.course_code} - {c.course_name}
@@ -385,7 +424,7 @@ const pass = evaluated
         <th className="px-4 py-3 text-center">IA1</th>
         <th className="px-4 py-3 text-center">IA2</th>
         <th className="px-4 py-3 text-center">FINAL</th>
-        <th className="px-4 py-3 text-center">Status</th>
+        <th className="px-4 py-3 text-center">Grade</th>
       </tr>
     </thead>
 
@@ -449,26 +488,20 @@ const pass = evaluated
               );
             })}
 
-            {/* STATUS */}
-            <td className="px-4 py-3 text-center text-xs">
-              {m.FINAL > 0 ? (
-                <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
-                  Completed
-                </span>
-              ) : m.IA2 > 0 ? (
-                <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full font-medium">
-                  IA2
-                </span>
-              ) : m.IA1 > 0 ? (
-                <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full font-medium">
-                  IA1
-                </span>
-              ) : (
-                <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full font-medium">
-                  Pending
-                </span>
-              )}
-            </td>
+            {/* GRADE */}
+<td className="px-4 py-3 text-center text-xs">
+  {(() => {
+    const g = getGrade(m);
+
+    return (
+      <span
+        className={`${g.color} px-3 py-1 rounded-full font-semibold`}
+      >
+        {g.grade}
+      </span>
+    );
+  })()}
+</td>
 
           </tr>
         );
