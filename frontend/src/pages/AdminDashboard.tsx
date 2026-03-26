@@ -320,7 +320,7 @@ const totalPages = Math.ceil(
           Attendance Analytics
         </h2>
 
-        <ResponsiveContainer width="100%" height={280}>
+        <ResponsiveContainer width="100%" height={340}>
 
           <BarChart data={attendanceAnalytics}>
 

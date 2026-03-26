@@ -52,7 +52,15 @@ const Index = () => {
   const fetchDashboard = async () => {
 
     try{
+      const username = localStorage.getItem("username");
 
+      if (username) {
+        const profileRes = await axios.get(
+          `http://127.0.0.1:8000/api/student-profile/?username=${username}`
+        );
+
+        localStorage.setItem("usn", profileRes.data.usn);  // 🔥 THIS
+      }
       const attendanceRes = await axios.get(
         `http://127.0.0.1:8000/api/attendance/?student=${STUDENT_ID}`
       );

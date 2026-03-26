@@ -742,25 +742,106 @@ def settings_api(request):
             return Response(serializer.data)
 
         return Response(serializer.errors, status=400)
-
-@api_view(["GET","POST"])
+@api_view(["GET", "POST"])
 def leave_requests_api(request):
 
+    # ================= GET =================
     if request.method == "GET":
 
-        leaves = LeaveRequest.objects.all().order_by("-created_at")
-        serializer = LeaveRequestSerializer(leaves,many=True)
+        role = request.GET.get("role")
+        user_id = request.GET.get("user")
+
+        leaves = LeaveRequest.objects.all()
+
+        if role == "student" and user_id:
+            leaves = leaves.filter(student_id=user_id)
+
+        elif role == "faculty" and user_id:
+            leaves = leaves.filter(
+                faculty_id=user_id,
+                is_faculty_leave=False
+            )
+
+        elif role == "faculty-self" and user_id:
+            leaves = leaves.filter(
+                requester_id=user_id,
+                is_faculty_leave=True
+            )
+
+        elif role == "admin":
+            leaves = leaves.filter(is_faculty_leave=True)
+
+        leaves = leaves.order_by("-created_at")
+
+        serializer = LeaveRequestSerializer(leaves, many=True)
         return Response(serializer.data)
 
+
+    # ================= POST =================
     if request.method == "POST":
 
-        serializer = LeaveRequestSerializer(data=request.data)
+        data = request.data.copy()
+        is_faculty_leave = data.get("is_faculty_leave", False)
+
+        # STUDENT REQUEST
+        if not is_faculty_leave:
+
+            student = Student.objects.filter(id=data.get("student")).first()
+
+            if not student:
+                return Response({"error": "Invalid student"}, status=400)
+
+            data["student_name"] = student.name
+            data["usn"] = student.usn
+
+        # FACULTY REQUEST
+        else:
+
+            data["student"] = None
+
+            user_id = data.get("user")
+
+            if not user_id:
+                return Response({"error": "User required"}, status=400)
+
+            data["requester"] = user_id
+
+            # ✅ GET REAL FACULTY NAME (Ananya)
+            faculty_obj = Faculty.objects.filter(user_id=user_id).first()
+
+            if faculty_obj:
+                data["faculty"] = faculty_obj.id   # ✅ THIS IS IMPORTANT
+
+            # assign admin
+            admin_user = User.objects.filter(is_staff=True).first()
+            if admin_user:
+                data["admin"] = admin_user.id
+
+        serializer = LeaveRequestSerializer(data=data)
 
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data)
 
-        return Response(serializer.errors,status=400)
+        return Response(serializer.errors, status=400)
+# ================= APPROVE / REJECT =================
+@api_view(["POST"])
+def update_leave_status(request, id):
+
+    try:
+        leave = LeaveRequest.objects.get(id=id)
+    except LeaveRequest.DoesNotExist:
+        return Response({"error": "Not found"}, status=404)
+
+    status = request.data.get("status")
+
+    if status not in ["Approved", "Rejected"]:
+        return Response({"error": "Invalid status"}, status=400)
+
+    leave.status = status
+    leave.save()
+
+    return Response({"message": f"{status} successfully"})
 
 @api_view(["GET", "POST"])
 def messages_api(request):

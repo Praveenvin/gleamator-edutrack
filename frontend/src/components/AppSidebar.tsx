@@ -14,7 +14,6 @@ const menuItems = [
   { title: "Internal Marks", url: "/student-dashboard/internal-marks", icon: BarChart3 },
   { title: "Leave Requests", url: "/student-dashboard/leave-requests", icon: CalendarOff },
   { title: "Messaging", url: "/student-dashboard/messaging", icon: MessageSquare },
-  { title: "Reports", url: "/student-dashboard/reports", icon: PieChart },
   { title: "Profile & Settings", url: "/student-dashboard/profile", icon: UserCog },
 ];
 

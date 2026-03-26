@@ -29,7 +29,9 @@ from .views import (
     enrollment_detail,
     messages_api,
     assignment_submissions,
+    update_leave_status,
 )
+
 
 urlpatterns = [
     path('login/', login_user),
@@ -60,4 +62,5 @@ urlpatterns = [
     path("enrollments/", enrollment_api),
     path("enrollments/<int:id>/", enrollment_detail),
     path("assignment-submissions/", assignment_submissions),
+    path("update-leave-status/<int:id>/", update_leave_status)
 ]

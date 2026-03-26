@@ -12,6 +12,7 @@ const menuItems = [
   { title: "Assignments", url: "/faculty-dashboard/assignments", icon: FileText },
   { title: "Upload Study Materials", url: "/faculty-dashboard/materials", icon: Upload },
   { title: "Internal Marks", url: "/faculty-dashboard/marks", icon: BarChart3 },
+  { title: "Leave Management", url: "/faculty-dashboard/leave", icon: FileText },
   { title: "Messages", url: "/faculty-dashboard/messages", icon: MessageSquare },
   { title: "Profile", url: "/faculty-dashboard/profile", icon: UserCog },
 ];

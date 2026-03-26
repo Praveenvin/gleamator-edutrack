@@ -1,6 +1,8 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useEffect, useState } from "react";
 import axios from "axios";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 interface MarkRow {
   id: number;
@@ -52,7 +54,43 @@ const InternalMarks = () => {
 
   return { grade: "F", color: "bg-red-100 text-red-700" };
 };
+  const downloadPDF = () => {
 
+  const doc = new jsPDF();
+
+  const studentName = localStorage.getItem("username") || "Student";
+  const usn = localStorage.getItem("usn") || "N/A";
+
+  // TITLE
+  doc.setFontSize(18);
+  doc.text("Student Report Card", 14, 15);
+
+  // STUDENT INFO
+  doc.setFontSize(11);
+  doc.text(`Name: ${studentName}`, 14, 25);
+  doc.text(`USN: ${usn}`, 14, 32);
+  doc.text(`GPA: ${gpa}`, 14, 39);
+
+  // TABLE
+  const tableData = marks.map(m => [
+    m.subject,
+    m.faculty || "-",
+    m.ia1 || "-",
+    m.ia2 || "-",
+    m.final || "-",
+    m.grade
+  ]);
+
+  autoTable(doc, {
+    startY: 45,
+    head: [["Subject", "Faculty", "IA1", "IA2", "Final", "Grade"]],
+    body: tableData,
+    styles: { fontSize: 9 },
+    headStyles: { fillColor: [41, 128, 185] }, // blue header
+  });
+
+  doc.save("ReportCard.pdf");
+};
   // 🎯 Grade → GPA mapping
   const gradeToPoint = (g:string)=>{
     switch(g){
@@ -196,7 +234,15 @@ const InternalMarks = () => {
       </div>
 
     </div>
-
+    <div className="flex justify-end mb-4">
+  <button
+    onClick={downloadPDF}
+    className="px-4 py-2 rounded-lg text-sm font-medium 
+    bg-primary text-white hover:bg-primary/90 shadow"
+  >
+    Download Report
+  </button>
+</div>
     {/* 🎯 TABLE */}
 <div className="bg-card border border-border rounded-xl overflow-hidden">
 

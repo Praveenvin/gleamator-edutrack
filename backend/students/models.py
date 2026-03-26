@@ -208,22 +208,46 @@ class Settings(models.Model):
 
 class LeaveRequest(models.Model):
 
+    requester = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="requested_leaves"   # ✅ FIX
+    )
+
+    admin = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="admin_leaves"       # ✅ FIX
+    )
+
     student = models.ForeignKey(
         Student,
         on_delete=models.CASCADE,
-        related_name="leave_requests"
+        related_name="leave_requests",
+        null=True,
+        blank=True
     )
 
     faculty = models.ForeignKey(
         Faculty,
         on_delete=models.SET_NULL,
         null=True,
-        blank=True
+        blank=True,
+        related_name="received_leaves"
     )
+
+    is_faculty_leave = models.BooleanField(default=False)
+
+    student_name = models.CharField(max_length=100, blank=True)
+    usn = models.CharField(max_length=20, blank=True)
+    subject = models.CharField(max_length=100, blank=True)
 
     from_date = models.DateField()
     to_date = models.DateField()
-
     reason = models.TextField()
 
     status = models.CharField(
@@ -239,7 +263,11 @@ class LeaveRequest(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.student.name} - {self.status}"
+        if self.student:
+            return f"{self.student.name} - {self.status}"
+        return f"Faculty Leave - {self.status}"
+
+
 
 class Message(models.Model):
 

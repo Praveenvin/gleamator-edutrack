@@ -15,7 +15,6 @@ import Assignments from "./pages/Assignments";
 import InternalMarks from "./pages/InternalMarks";
 import LeaveRequests from "./pages/LeaveRequests";
 import Messaging from "./pages/Messaging";
-import Reports from "./pages/Reports";
 import Profile from "./pages/Profile";
 import NotFound from "./pages/NotFound";
 
@@ -26,6 +25,7 @@ import AdminCourses from "./pages/admin/AdminCourses";
 import AdminAttendance from "./pages/admin/AdminAttendance";
 import AdminAssignments from "./pages/admin/AdminAssignments";
 import AdminMaterials from "./pages/admin/AdminMaterials";
+import AdminLeave from "./pages/admin/AdminLeave";
 import AdminSettings from "./pages/admin/AdminSettings";
 
 import FacultyDashboard from "./pages/FacultyDashboard";
@@ -34,6 +34,7 @@ import FacultyAttendance from "./pages/faculty/FacultyAttendance";
 import FacultyAssignments from "./pages/faculty/FacultyAssignments";
 import FacultyMaterials from "./pages/faculty/FacultyMaterials";
 import FacultyMarks from "./pages/faculty/FacultyMarks";
+import FacultyLeave from "./pages/faculty/FacultyLeave";
 import FacultyMessages from "./pages/faculty/FacultyMessages";
 import FacultyProfile from "./pages/faculty/FacultyProfile";
 
@@ -59,7 +60,6 @@ const App = () => (
             <Route path="/student-dashboard/internal-marks" element={<ProtectedRoute role="student"><InternalMarks /></ProtectedRoute>} />
             <Route path="/student-dashboard/leave-requests" element={<ProtectedRoute role="student"><LeaveRequests /></ProtectedRoute>} />
             <Route path="/student-dashboard/messaging" element={<ProtectedRoute role="student"><Messaging /></ProtectedRoute>} />
-            <Route path="/student-dashboard/reports" element={<ProtectedRoute role="student"><Reports /></ProtectedRoute>} />
             <Route path="/student-dashboard/profile" element={<ProtectedRoute role="student"><Profile /></ProtectedRoute>} />
 
             {/* Admin routes */}
@@ -70,6 +70,11 @@ const App = () => (
             <Route path="/admin-dashboard/attendance" element={<ProtectedRoute role="admin"><AdminAttendance /></ProtectedRoute>} />
             <Route path="/admin-dashboard/assignments" element={<ProtectedRoute role="admin"><AdminAssignments /></ProtectedRoute>} />
             <Route path="/admin-dashboard/materials" element={<ProtectedRoute role="admin"><AdminMaterials /></ProtectedRoute>} />
+            <Route path="/admin-dashboard/leave" element={
+  <ProtectedRoute role="admin">
+    <AdminLeave />
+  </ProtectedRoute>
+} />
             <Route path="/admin-dashboard/settings" element={<ProtectedRoute role="admin"><AdminSettings /></ProtectedRoute>} />
 
             {/* Faculty routes */}
@@ -77,6 +82,11 @@ const App = () => (
             <Route path="/faculty-dashboard/courses" element={<ProtectedRoute role="faculty"><FacultyCourses /></ProtectedRoute>} />
             <Route path="/faculty-dashboard/attendance" element={<ProtectedRoute role="faculty"><FacultyAttendance /></ProtectedRoute>} />
             <Route path="/faculty-dashboard/assignments" element={<ProtectedRoute role="faculty"><FacultyAssignments /></ProtectedRoute>} />
+            <Route path="/faculty-dashboard/leave" element={
+  <ProtectedRoute role="faculty">
+    <FacultyLeave />
+  </ProtectedRoute>
+} />
             <Route path="/faculty-dashboard/materials" element={<ProtectedRoute role="faculty"><FacultyMaterials /></ProtectedRoute>} />
             <Route path="/faculty-dashboard/marks" element={<ProtectedRoute role="faculty"><FacultyMarks /></ProtectedRoute>} />
             <Route path="/faculty-dashboard/messages" element={<ProtectedRoute role="faculty"><FacultyMessages /></ProtectedRoute>} />

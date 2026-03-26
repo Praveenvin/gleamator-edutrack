@@ -98,9 +98,20 @@ class SettingsSerializer(serializers.ModelSerializer):
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
 
+    faculty_name = serializers.SerializerMethodField()
+
     class Meta:
         model = LeaveRequest
         fields = "__all__"
+
+    def get_faculty_name(self, obj):
+
+        if obj.faculty:
+            return obj.faculty.name
+        if obj.requester:
+            return obj.requester.username
+
+        return "Unknown Faculty"
 
 class MessageSerializer(serializers.ModelSerializer):
 
