@@ -16,6 +16,7 @@ from .views import (
     leave_requests_api,
     change_password,
     messages_api,
+    message_detail,
     student_detail,
     student_profile,
     timetable_api,
@@ -32,6 +33,9 @@ from .views import (
     update_leave_status,
     forgot_password,
     reset_password,
+    student_full_details,
+    faculty_full_details,
+    course_full_details,
 )
 
 
@@ -52,6 +56,7 @@ urlpatterns = [
     path("settings/", settings_api),
     path("leave-requests/", leave_requests_api),
     path("messages/", messages_api),
+    path("messages/<int:id>/", message_detail),
     path("change-password/", change_password),
     path("students/<int:id>/", student_detail),
     path("student-profile/", student_profile),
@@ -67,4 +72,7 @@ urlpatterns = [
     path("update-leave-status/<int:id>/", update_leave_status),
     path("forgot-password/", forgot_password),
     path("reset-password/<str:token>/", reset_password),
+    path("student-full/", student_full_details),
+    path("faculty-full/", faculty_full_details),
+    path("course-full/", course_full_details),
 ]

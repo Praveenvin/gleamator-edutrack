@@ -25,10 +25,15 @@ const statusStyle: Record<string, string> = {
 const LeaveRequests = () => {
 
   const { user } = useAuth()
-
   const [studentId, setStudentId] = useState<number | null>(null)
   const [faculties, setFaculties] = useState<Faculty[]>([])
   const [requests, setRequests] = useState<LeaveRequest[]>([])
+  const [currentPage, setCurrentPage] = useState(1)
+  const requestsPerPage = 5
+  const indexOfLast = currentPage * requestsPerPage
+  const indexOfFirst = indexOfLast - requestsPerPage
+  const currentRequests = requests.slice(indexOfFirst, indexOfLast)
+  const totalPages = Math.ceil(requests.length / requestsPerPage)
   const today = new Date().toISOString().split("T")[0]
   const [form, setForm] = useState({
     from_date: "",
@@ -99,6 +104,7 @@ const LeaveRequests = () => {
         `http://127.0.0.1:8000/api/leave-requests/?role=student&user=${sid}`
       )
       setRequests(res.data)
+      setCurrentPage(1)
     } catch (err) {
       console.error(err)
     }
@@ -277,7 +283,7 @@ focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
 
           <div className="space-y-3">
 
-            {requests.map(r => (
+            {currentRequests.map(r => (
               <div key={r.id} className="flex justify-between items-center border-b pb-3">
 
                 <div>
@@ -293,7 +299,47 @@ focus:outline-none focus:ring-2 focus:ring-primary/30 transition"
 
               </div>
             ))}
+          {requests.length > requestsPerPage && (
+  <div className="flex justify-between items-center mt-4 pt-3 border-t border-border">
 
+    <p className="text-sm text-muted-foreground">
+      Page {currentPage} of {totalPages}
+    </p>
+
+    <div className="flex gap-2">
+
+      <button
+        onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+        disabled={currentPage === 1}
+        className={`px-4 py-2 rounded-lg text-sm font-medium 
+        flex items-center gap-1 border transition-all duration-200
+
+        ${currentPage === 1
+          ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+          : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md active:scale-95"
+        }`}
+      >
+        ← Prev
+      </button>
+
+      <button
+        onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+        disabled={currentPage === totalPages}
+        className={`px-4 py-2 rounded-lg text-sm font-medium 
+        flex items-center gap-1 border transition-all duration-200
+
+        ${currentPage === totalPages
+          ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+          : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md active:scale-95"
+        }`}
+      >
+        Next →
+      </button>
+
+    </div>
+
+  </div>
+)}
           </div>
 
         </div>

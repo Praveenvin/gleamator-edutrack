@@ -2,6 +2,7 @@ import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { Search, Clock, X } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Plus } from "lucide-react";
 
 interface Faculty {
@@ -35,7 +36,7 @@ const AdminFaculty = () => {
 
   const [sortField,setSortField] = useState<string | null>(null);
   const [sortOrder,setSortOrder] = useState<"asc" | "desc">("asc");
-
+  const navigate = useNavigate();
   const [showModal,setShowModal] = useState(false);
   const [editing,setEditing] = useState(false);
 
@@ -595,7 +596,14 @@ Export All
                 FAC{f.id?.toString().padStart(3,"0")}
               </td>
 
-              <td className="px-4 py-3 font-medium">{f.name}</td>
+              <td className="px-4 py-3 font-medium">
+  <span
+    onClick={() => navigate(`/admin-dashboard/faculty/${f.id}`)}
+    className="cursor-pointer hover:underline"
+  >
+    {f.name}
+  </span>
+</td>
 
               <td className="px-4 py-3">
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${deptColors[f.department] || "bg-gray-100 text-gray-600"}`}>

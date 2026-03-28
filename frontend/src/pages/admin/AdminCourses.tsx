@@ -1,6 +1,7 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Plus, X, Search, Clock } from "lucide-react";
 interface Course {
   id?: number
@@ -35,7 +36,7 @@ const AdminCourses = ()=>{
 
   const [sortField,setSortField] = useState<string | null>(null)
   const [sortOrder,setSortOrder] = useState<"asc" | "desc">("asc")
-
+  const navigate = useNavigate();
   const [currentPage,setCurrentPage] = useState(1)
   const rowsPerPage = 8
   const [searchHistory, setSearchHistory] = useState<string[]>([])
@@ -524,7 +525,14 @@ const confirmBulkDelete = async ()=>{
   </td>
 )}
               <td className="px-4 py-3 font-mono-data text-primary">{c.course_code}</td>
-              <td className="px-4 py-3 font-medium">{c.course_name}</td>
+              <td className="px-4 py-3 font-medium">
+  <span
+    onClick={() => navigate(`/admin-dashboard/course/${c.id}`)}
+    className="cursor-pointer hover:underline"
+  >
+    {c.course_name}
+  </span>
+</td>
               <td className="px-4 py-3">
                 <span className={`text-xs px-2.5 py-1 rounded-full font-medium ${deptColors[c.department]}`}>
                   {c.department}

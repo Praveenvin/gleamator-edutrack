@@ -1,6 +1,7 @@
 import { AdminDashboardLayout } from "@/components/AdminDashboardLayout";
 import { useEffect, useState, useRef } from "react";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2, Plus, X, Search, Clock } from "lucide-react";
 interface Student {
   id:number;
@@ -51,6 +52,7 @@ const AdminStudents = ()=>{
   const [message,setMessage] = useState<string | null>(null);
   const [formError,setFormError] = useState<string | null>(null);
   const [currentPage,setCurrentPage] = useState(1);
+  const navigate = useNavigate();
   const rowsPerPage = 8;
   const [form,setForm] = useState({
     name:"",
@@ -592,8 +594,13 @@ Export All
               <td className="px-4 py-3">{s.usn}</td>
 
               <td className="px-4 py-3 font-medium">
-                {s.name}
-              </td>
+  <span
+  onClick={() => navigate(`/admin-dashboard/student/${s.id}`)}
+  className="cursor-pointer hover:underline"
+>
+  {s.name}
+</span>
+</td>
 
               <td className="px-4 py-3">
 

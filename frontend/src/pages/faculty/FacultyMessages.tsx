@@ -2,7 +2,7 @@ import { FacultyDashboardLayout } from "@/components/FacultyDashboardLayout";
 import { useState, useEffect ,useRef} from "react";
 import axios from "axios";
 import { Search, Clock, X } from "lucide-react";
-
+import { Pencil, Trash2, Plus } from "lucide-react";
 interface Message {
   id: number;
   sender: string;
@@ -31,7 +31,18 @@ const FacultyMessages = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourses, setSelectedCourses] = useState<number[]>([]);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
+  const [popupError, setPopupError] = useState("");
   const [students, setStudents] = useState<any[]>([]);
+  const fetchingRef = useRef(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const messagesPerPage = 6;
+  const indexOfLast = currentPage * messagesPerPage;
+  const indexOfFirst = indexOfLast - messagesPerPage;
+  const currentMessages = filtered.slice(indexOfFirst, indexOfLast);
+  const totalPages = Math.ceil(filtered.length / messagesPerPage);
+  const [deleteId, setDeleteId] = useState<number | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [editData, setEditData] = useState<Message | null>(null);
   const [selectedStudents, setSelectedStudents] = useState<number[]>([]);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const courseColors = [
@@ -66,35 +77,82 @@ const searchRef = useRef<HTMLDivElement>(null)
   // ================= FETCH =================
 
   const fetchMessages = async () => {
-    try {
-      const facultyId = Number(localStorage.getItem("user_id"));
+  if (fetchingRef.current) return;   // 🚫 prevent multiple calls
 
-const res = await axios.get(API);
+  fetchingRef.current = true;
 
-const mapped = res.data
-  .filter((m: any) => m.sender === facultyId || m.receiver === facultyId)
-  .map((m: any) => ({
-    id: m.id,
-    subject: m.subject,
-    message: m.body,
-    created_at: m.created_at,
-    is_read: m.is_read,
-    sender:
-      m.sender === facultyId
-      ? "You"
-      : m.sender_name || `Student ${m.sender}`,
-  }));
+  try {
+    const facultyId = Number(localStorage.getItem("user_id"));
 
-      setMessages(mapped);
-      setFiltered(mapped);
+    const res = await axios.get(API, {
+      params: { user: facultyId }
+    });
 
-      if (mapped.length > 0) setSelected(mapped[0]);
+    const uniqueMessages = Array.from(
+  new Map(
+    res.data.map((m: any) => [
+      m.subject + m.body + m.sender, // 🔥 KEY CHANGE
+      m
+    ])
+  ).values()
+);
 
-    } catch (err) {
-      console.error("Fetch error:", err);
-    }
-  };
+    console.log("API COUNT:", res.data.length);
 
+    const mapped = uniqueMessages.map((m: any) => ({
+      id: m.id,
+      subject: m.subject,
+      message: m.body || m.message,
+      created_at: m.created_at,
+      is_read: m.is_read,
+      sender:
+        m.sender === facultyId
+          ? "You"
+          : m.sender_name || `User ${m.sender}`,
+    }));
+
+    setMessages(mapped);
+    setFiltered(mapped);
+
+    if (mapped.length > 0) setSelected(mapped[0]);
+
+  } catch (err) {
+    console.error("Fetch error:", err);
+  } finally {
+    fetchingRef.current = false;   // ✅ release lock
+  }
+};
+  const confirmDelete = async () => {
+  try {
+    if (!deleteId) return;
+
+    await axios.delete(`${API}${deleteId}/`);
+
+    // ✅ remove from UI instantly (NO refetch)
+    setMessages(prev => prev.filter(m => m.id !== deleteId));
+    setFiltered(prev => prev.filter(m => m.id !== deleteId));
+
+    // ✅ clear selection safely
+    setSelected(prev => (prev?.id === deleteId ? null : prev));
+
+    setDeleteId(null);   // close popup
+    setError("");        // clear popup error
+
+    setSuccess("Message deleted successfully");
+
+  } catch (err: any) {
+    console.error(err.response?.data || err);
+    setPopupError(
+      err.response?.data?.error || "Delete failed"
+    );
+  }
+};
+  const openEdit = (msg: Message) => {
+  setEditing(true);
+  setEditData(msg);
+  setSubject(msg.subject);
+  setBody(msg.message);
+};
   const fetchCourses = async () => {
     try {
       const facultyId = Number(localStorage.getItem("faculty_id"));
@@ -165,21 +223,26 @@ const mapped = res.data
   setSearchHistory(updated)
   localStorage.setItem("faculty_message_search_history", JSON.stringify(updated))
 }
-  const suggestions = messages
-  .filter(m =>
-    m.subject.toLowerCase().includes(search.toLowerCase()) ||
-    m.sender.toLowerCase().includes(search.toLowerCase())
-  )
-  .slice(0, 5)
+  // 🔒 prevent multiple fetch calls
+const hasFetched = useRef(false);
 
-  useEffect(() => {
-    fetchMessages();
-    fetchCourses();
-    const stored = localStorage.getItem("faculty_message_search_history")
-if (stored) {
-  setSearchHistory(JSON.parse(stored))
-}
-  }, []);
+// 🔍 suggestions (safe)
+const suggestions = messages
+  .filter(m =>
+    (m.subject || "").toLowerCase().includes(search.toLowerCase()) ||
+    (m.sender || "").toLowerCase().includes(search.toLowerCase())
+  )
+  .slice(0, 5);
+
+// 🚀 fetch only once
+useEffect(() => {
+  if (hasFetched.current) return;
+
+  hasFetched.current = true;
+
+  fetchMessages();
+  fetchCourses();
+}, []);
   useEffect(() => {
   const handleClickOutside = (event: MouseEvent) => {
     if (
@@ -235,8 +298,7 @@ if (stored) {
 
   // ================= SEND =================
 
-  const sendMessage = async () => {
-
+ const sendMessage = async () => {
   setError("");
   setSuccess("");
 
@@ -250,39 +312,83 @@ if (stored) {
 
     const senderId = Number(localStorage.getItem("user_id"));
 
-    let payload: any = {
-      sender: senderId,
-      subject,
-      message: body   // ✅ IMPORTANT
-    };
+    // ================= EDIT MODE =================
+    if (editing && editData) {
 
-    // ✅ COURSE BASED
-    if (selectedCourses.length > 0) {
-  payload.courses = selectedCourses;
-  // 🔥 IMPORTANT
-}
+      await axios.put(`${API}${editData.id}/`, {
+        subject,
+        message: body,
+      });
 
-    // ✅ BROADCAST
+      // ✅ update UI locally
+      setMessages(prev =>
+        prev.map(m =>
+          m.id === editData.id
+            ? { ...m, subject, message: body }
+            : m
+        )
+      );
+
+      setFiltered(prev =>
+        prev.map(m =>
+          m.id === editData.id
+            ? { ...m, subject, message: body }
+            : m
+        )
+      );
+
+      setSuccess("Message updated successfully");
+
+      setEditing(false);
+      setEditData(null);
+    } 
+
+    // ================= CREATE MODE =================
     else {
-      payload.broadcast = true;
+
+      let payload: any = {
+        sender: senderId,
+        subject,
+        message: body
+      };
+
+      if (selectedCourses.length > 0) {
+        payload.courses = selectedCourses;
+      } else {
+        payload.broadcast = true;
+      }
+
+      console.log("FINAL PAYLOAD:", payload);
+
+      const res = await axios.post(API, payload);
+
+      // ✅ use backend response if available
+      const newMsg = {
+        id: res.data?.id || Date.now(),
+        subject,
+        message: body,
+        created_at: new Date().toISOString(),
+        is_read: false,
+        sender: "You"
+      };
+
+      // ✅ update UI instantly (NO refetch)
+      setMessages(prev => [newMsg, ...prev]);
+      setFiltered(prev => [newMsg, ...prev]);
+      setSelected(newMsg);
+
+      setSuccess("Message sent successfully");
     }
 
-    console.log("FINAL PAYLOAD:", payload);
-
-    await axios.post(API, payload);
-
-    setSuccess("Message sent successfully");
-
-    // reset
+    // ================= COMMON RESET =================
     setSubject("");
     setBody("");
     setSelectedCourses([]);
 
-    fetchMessages();
 
   } catch (err: any) {
     console.error(err.response?.data || err);
-    setError("Failed to send message");
+    setError("Failed to process message");
   } finally {
     setSending(false);
   }
@@ -295,142 +401,217 @@ if (stored) {
         Messages
       </h1>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
 
         {/* LEFT PANEL */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
+        <div className="lg:col-span-2 bg-card border border-border rounded-xl overflow-hidden">
 
-          <div className="p-3 border-b border-border bg-muted/30">
-            <div ref={searchRef} className="relative">
+  {/* SEARCH */}
+  <div className="p-3 border-b border-border bg-muted/30">
+    <div ref={searchRef} className="relative">
 
-  <input
-    placeholder="Search messages..."
-    value={search}
-    onChange={(e) => {
-      setSearch(e.target.value)
-      setShowDropdown(true)
-    }}
-    onFocus={() => setShowDropdown(true)}
-    onKeyDown={(e) => {
-      if (e.key === "Enter") {
-        if (!search.trim()) return
+      <input
+        placeholder="Search messages..."
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          setShowDropdown(true)
+        }}
+        onFocus={() => setShowDropdown(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            if (!search.trim()) return
 
-        saveSearch(search)
-        setShowDropdown(false)
-        e.currentTarget.blur()
-      }
-    }}
-     className="w-full px-3 py-2 rounded-md 
-bg-background border border-border 
-hover:border-primary/40 
-focus:outline-none focus:ring-2 focus:ring-primary/20
-transition"
-  style={{ WebkitBoxShadow: "0 0 0 1000px transparent inset" }}
-  />
+            saveSearch(search)
+            setShowDropdown(false)
+            e.currentTarget.blur()
+          }
+        }}
+        className="w-full px-3 py-2 rounded-md 
+        bg-background border border-border 
+        hover:border-primary/40 
+        focus:outline-none focus:ring-2 focus:ring-primary/20
+        transition"
+        style={{ WebkitBoxShadow: "0 0 0 1000px transparent inset" }}
+      />
 
-  {showDropdown && (
-    <div className="absolute w-full bg-white border border-border rounded-xl shadow-lg mt-2 z-50 max-h-64 overflow-y-auto">
+      {showDropdown && (
+        <div className="absolute w-full bg-white border border-border rounded-xl shadow-lg mt-2 z-50 max-h-64 overflow-y-auto">
 
-      {/* HISTORY */}
-      {!search && searchHistory.length > 0 && (
-        <div className="py-1">
+          {/* HISTORY */}
+          {!search && searchHistory.length > 0 && (
+            <div className="py-1">
 
-          <div className="flex justify-between px-3 py-2 text-xs text-muted-foreground">
-            <span>Recent Searches</span>
-            <button
-              onClick={() => {
-                localStorage.removeItem("faculty_message_search_history")
-                setSearchHistory([])
-              }}
-              className="hover:text-red-500"
-            >
-              Clear
-            </button>
-          </div>
-
-          {searchHistory.map((item, i) => (
-            <div key={i} className="flex justify-between px-3 py-2 hover:bg-muted/50 group">
-
-              <div
-                onClick={() => {
-                  setSearch(item)
-                  saveSearch(item)
-                  setShowDropdown(false)
-                }}
-                className="flex items-center gap-2 cursor-pointer"
-              >
-                <Clock size={14} />
-                {item}
+              <div className="flex justify-between px-3 py-2 text-xs text-muted-foreground">
+                <span>Recent Searches</span>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem("faculty_message_search_history")
+                    setSearchHistory([])
+                  }}
+                  className="hover:text-red-500"
+                >
+                  Clear
+                </button>
               </div>
 
-              <X
-                size={14}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const updated = searchHistory.filter((_, idx) => idx !== i)
-                  setSearchHistory(updated)
-                  localStorage.setItem("faculty_message_search_history", JSON.stringify(updated))
-                }}
-                className="opacity-0 group-hover:opacity-100 cursor-pointer"
-              />
+              {searchHistory.map((item, i) => (
+                <div key={i} className="flex justify-between px-3 py-2 hover:bg-muted/50 group">
 
+                  <div
+                    onClick={() => {
+                      setSearch(item)
+                      saveSearch(item)
+                      setShowDropdown(false)
+                    }}
+                    className="flex items-center gap-2 cursor-pointer"
+                  >
+                    <Clock size={14} />
+                    {item}
+                  </div>
+
+                  <X
+                    size={14}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const updated = searchHistory.filter((_, idx) => idx !== i)
+                      setSearchHistory(updated)
+                      localStorage.setItem("faculty_message_search_history", JSON.stringify(updated))
+                    }}
+                    className="opacity-0 group-hover:opacity-100 cursor-pointer"
+                  />
+
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* SUGGESTIONS */}
+          {search && suggestions.map((m, i) => (
+            <div
+              key={i}
+              onClick={() => {
+                setSearch(m.subject)
+                saveSearch(m.subject)
+                setShowDropdown(false)
+              }}
+              className="flex items-center gap-2 px-3 py-2 hover:bg-primary/10 cursor-pointer"
+            >
+              <Search size={14} />
+              {m.subject}
             </div>
           ))}
+
         </div>
       )}
 
-      {/* SUGGESTIONS */}
-      {search && suggestions.map((m, i) => (
-        <div
-          key={i}
-          onClick={() => {
-            setSearch(m.subject)
-            saveSearch(m.subject)
-            setShowDropdown(false)
-          }}
-          className="flex items-center gap-2 px-3 py-2 hover:bg-primary/10 cursor-pointer"
+    </div>
+  </div>
+
+  {/* MESSAGE LIST */}
+  <div className="max-h-[500px] overflow-y-auto space-y-1 p-1">
+
+    {currentMessages.map(m => (
+      <div
+        key={m.id}
+        className={`group w-full px-4 py-3 rounded-xl border border-transparent
+        transition-all duration-200 flex justify-between items-start
+
+        ${selected?.id === m.id
+          ? "bg-primary/10 border-primary/20 shadow-sm"
+          : "hover:bg-muted/40 hover:border-border hover:shadow-sm"}
+        `}
+      >
+
+        {/* CLICK AREA */}
+        <button
+          onClick={() => setSelected(m)}
+          className="flex-1 text-left"
         >
-          <Search size={14} />
-          {m.subject}
+          <div className="flex justify-between items-center mb-1">
+            <span className={`${!m.is_read ? "font-semibold" : ""}`}>
+              {m.sender}
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {new Date(m.created_at).toLocaleTimeString()}
+            </span>
+          </div>
+
+          <p className="text-xs text-muted-foreground truncate">
+            {m.subject}
+          </p>
+        </button>
+
+        {/* ACTIONS */}
+        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+
+          <button
+            onClick={() => openEdit(m)}
+            className="p-1.5 rounded text-blue-600 hover:bg-blue-100"
+            title="Edit"
+          >
+            <Pencil size={14} />
+          </button>
+
+          <button
+            onClick={() => setDeleteId(m.id)}
+            className="p-1.5 rounded text-red-600 hover:bg-red-100"
+            title="Delete"
+          >
+            <Trash2 size={14} />
+          </button>
+
         </div>
-      ))}
+
+      </div>
+    ))}
+
+    {/* ✅ PAGINATION (ONLY ADDITION) */}
+    {filtered.length > messagesPerPage && (
+  <div className="flex justify-between items-center mt-4 px-3 py-3 border-t border-border">
+
+    <p className="text-sm text-muted-foreground">
+      Page {currentPage} of {totalPages}
+    </p>
+
+    <div className="flex gap-2">
+
+      <button
+        onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+        disabled={currentPage === 1}
+        className={`px-4 py-2 rounded-lg text-sm font-medium 
+        flex items-center gap-1 border transition-all duration-200
+
+        ${currentPage === 1
+          ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+          : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md active:scale-95"
+        }`}
+      >
+        ← Prev
+      </button>
+
+      <button
+        onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+        disabled={currentPage === totalPages}
+        className={`px-4 py-2 rounded-lg text-sm font-medium 
+        flex items-center gap-1 border transition-all duration-200
+
+        ${currentPage === totalPages
+          ? "bg-muted text-muted-foreground border-border cursor-not-allowed"
+          : "bg-background text-foreground border-border hover:bg-primary hover:text-white hover:border-primary shadow-sm hover:shadow-md active:scale-95"
+        }`}
+      >
+        Next →
+      </button>
 
     </div>
-  )}
+
+  </div>
+)}
+
+  </div>
 
 </div>
-          </div>
-
-          <div className="max-h-[500px] overflow-y-auto space-y-1 p-1">
-
-            {filtered.map(m => (
-              <button
-                key={m.id}
-                onClick={() => setSelected(m)}
-                className={`w-full text-left px-4 py-3 
-transition-all duration-200 ease-in-out rounded-lg
-${selected?.id === m.id
-  ? "bg-primary/15 shadow-sm"
-  : "hover:bg-muted/40 hover:scale-[1.01]"}
-`}
-              >
-                <div className="flex justify-between items-center mb-1">
-                  <span className={`${!m.is_read ? "font-semibold" : ""}`}>
-                    {m.sender}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(m.created_at).toLocaleTimeString()}
-                  </span>
-                </div>
-
-                <p className="text-xs text-muted-foreground truncate leading-relaxed">
-                  {m.subject}
-                </p>
-              </button>
-            ))}
-
-          </div>
-        </div>
 
         {/* RIGHT PANEL */}
         <div className="lg:col-span-2 flex flex-col gap-4">
@@ -447,7 +628,7 @@ ${selected?.id === m.id
 
     <button
       onClick={() => setSuccess("")}
-      className="ml-3 text-green-600 hover:opacity-70 text-sm font-bold transition"
+      className="text-green-600 hover:opacity-70 font-bold"
     >
       ✕
     </button>
@@ -456,10 +637,19 @@ ${selected?.id === m.id
 )}
 
             {error && (
-              <div className="mb-3 px-3 py-2 rounded-lg bg-red-100 text-red-700 border border-red-200 text-sm">
-                {error}
-              </div>
-            )}
+  <div className="mb-3 px-3 py-2 rounded-lg bg-red-100 text-red-700 border border-red-200 flex justify-between items-center text-sm">
+
+    <span>{error}</span>
+
+    <button
+      onClick={() => setError("")}
+      className="text-red-600 hover:opacity-70 font-bold"
+    >
+      ✕
+    </button>
+
+  </div>
+)}
 
             <input
               placeholder="Subject"
@@ -571,7 +761,47 @@ disabled:opacity-50"
             </button>
 
           </div>
+          {deleteId && (
+  <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
 
+    <div className="bg-white p-6 rounded-xl w-[320px] text-center shadow-lg">
+
+      <p className="mb-3 text-sm font-medium">
+        Delete this message?
+      </p>
+
+      {/* ❗ ERROR INSIDE POPUP */}
+      {popupError && (
+        <div className="mb-3 px-3 py-2 rounded-lg bg-red-100 text-red-700 text-xs">
+          {popupError}
+        </div>
+      )}
+
+      <div className="flex justify-center gap-4">
+
+        <button
+          onClick={()=>{
+            setDeleteId(null);
+            setPopupError("");   // ✅ reset error
+          }}
+          className="px-4 py-2 border rounded-lg hover:bg-gray-100"
+        >
+          Cancel
+        </button>
+
+        <button
+          onClick={confirmDelete}
+          className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700"
+        >
+          Delete
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
           {/* MESSAGE VIEW */}
           <div className="bg-card border border-border rounded-xl p-6 flex flex-col flex-1">
 
@@ -584,12 +814,37 @@ disabled:opacity-50"
 
             {selected && (
               <>
-                <div className="border-b pb-3 mb-4">
-                  <h3 className="font-semibold">{selected.sender}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {selected.subject}
-                  </p>
-                </div>
+                <div className="border-b pb-3 mb-4 flex justify-between items-start">
+
+  <div>
+    <h3 className="font-semibold">{selected.sender}</h3>
+    <p className="text-sm text-muted-foreground">
+      {selected.subject}
+    </p>
+  </div>
+
+  {/* ACTIONS */}
+  <div className="flex gap-2">
+
+    <button
+      onClick={() => openEdit(selected)}
+      className="p-1.5 rounded text-blue-600 hover:bg-blue-100 transition"
+      title="Edit"
+    >
+      <Pencil size={16} />
+    </button>
+
+    <button
+      onClick={() => setDeleteId(selected.id)}
+      className="p-1.5 rounded text-red-600 hover:bg-red-100 transition"
+      title="Delete"
+    >
+      <Trash2 size={16} />
+    </button>
+
+  </div>
+
+</div>
 
                 <div className="flex-1">
                   <div className="bg-muted/40 p-4 rounded-xl border border-border text-sm leading-relaxed shadow-inner">

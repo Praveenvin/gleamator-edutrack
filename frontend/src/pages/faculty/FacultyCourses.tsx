@@ -293,7 +293,7 @@ try{
           <div key={c.id}
             className="bg-card border border-border rounded-xl p-6 shadow-sm hover:shadow-md transition">
 
-            <div className="flex justify-between mb-3">
+            <div className="flex justify-between items-center mb-3">
 
               <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full">
                 {c.course_code}

@@ -27,6 +27,9 @@ import AdminAssignments from "./pages/admin/AdminAssignments";
 import AdminMaterials from "./pages/admin/AdminMaterials";
 import AdminLeave from "./pages/admin/AdminLeave";
 import AdminSettings from "./pages/admin/AdminSettings";
+import AdminFacultyDetail from "./pages/FacultyDetail";
+import AdminStudentDetail from "./pages/StudentDetail";
+import AdminCourseDetail from "./pages/CourseDetail";
 
 import FacultyDashboard from "./pages/FacultyDashboard";
 import FacultyCourses from "./pages/faculty/FacultyCourses";
@@ -66,6 +69,30 @@ const App = () => (
             {/* Admin routes */}
             <Route path="/admin-dashboard" element={<ProtectedRoute role="admin"><AdminDashboard /></ProtectedRoute>} />
             <Route path="/admin-dashboard/students" element={<ProtectedRoute role="admin"><AdminStudents /></ProtectedRoute>} />
+            <Route
+  path="/admin-dashboard/student/:id"
+  element={
+    <ProtectedRoute role={["admin","faculty"]}>
+      <AdminStudentDetail />
+    </ProtectedRoute>
+  }
+/>
+            <Route
+  path="/admin-dashboard/faculty/:id"
+  element={
+    <ProtectedRoute role={["admin","faculty"]}>
+      <AdminFacultyDetail />
+    </ProtectedRoute>
+  }
+/>
+            <Route
+  path="/admin-dashboard/course/:id"
+  element={
+    <ProtectedRoute role={["admin","faculty"]}>
+      <AdminCourseDetail />
+    </ProtectedRoute>
+  }
+/>
             <Route path="/admin-dashboard/faculty" element={<ProtectedRoute role="admin"><AdminFaculty /></ProtectedRoute>} />
             <Route path="/admin-dashboard/courses" element={<ProtectedRoute role="admin"><AdminCourses /></ProtectedRoute>} />
             <Route path="/admin-dashboard/attendance" element={<ProtectedRoute role="admin"><AdminAttendance /></ProtectedRoute>} />
@@ -88,6 +115,14 @@ const App = () => (
     <FacultyLeave />
   </ProtectedRoute>
 } />
+            <Route
+  path="/faculty-dashboard/student/:id"
+  element={
+    <ProtectedRoute role={["admin","faculty"]}>
+      <AdminStudentDetail />
+    </ProtectedRoute>
+  }
+/>
             <Route path="/faculty-dashboard/materials" element={<ProtectedRoute role="faculty"><FacultyMaterials /></ProtectedRoute>} />
             <Route path="/faculty-dashboard/marks" element={<ProtectedRoute role="faculty"><FacultyMarks /></ProtectedRoute>} />
             <Route path="/faculty-dashboard/messages" element={<ProtectedRoute role="faculty"><FacultyMessages /></ProtectedRoute>} />

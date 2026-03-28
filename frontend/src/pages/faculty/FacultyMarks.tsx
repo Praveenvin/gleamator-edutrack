@@ -2,6 +2,7 @@ import { FacultyDashboardLayout } from "@/components/FacultyDashboardLayout";
 import { useEffect, useState } from "react";
 import axios from "axios";
 import * as XLSX from "xlsx";
+import { useNavigate } from "react-router-dom";
 interface Student {
   id: number;
   name: string;
@@ -25,7 +26,7 @@ const FacultyMarks = () => {
   const [selectedCourse,setSelectedCourse] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [marks,setMarks] = useState<Record<number,{IA1:number,IA2:number,FINAL:number}>>({});
-
+  const navigate = useNavigate();
   const [message,setMessage] = useState<string | null>(null);
   const [error,setError] = useState<string | null>(null);
   const [saving,setSaving] = useState(false);
@@ -442,7 +443,14 @@ const pass = evaluated
             <td className="px-4 py-3">{s.id}</td>
 
             {/* NAME */}
-            <td className="px-4 py-3 font-medium">{s.name}</td>
+            <td className="px-4 py-3 font-medium">
+  <span
+    onClick={() => navigate(`/admin-dashboard/student/${s.id}`)}
+    className="cursor-pointer hover:underline"
+  >
+    {s.name}
+  </span>
+</td>
 
             {/* MARKS */}
             {["IA1", "IA2", "FINAL"].map((t) => {

@@ -264,7 +264,7 @@ const chartData = courses.map((c:any)=>{
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
 
   {/* TOTAL STUDENTS */}
-<div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-2xl border shadow-sm hover:shadow-lg transition">
+<div className="bg-card border border-border p-6 rounded-2xl shadow-sm hover:shadow-md transition">
 
   <p className="text-xs text-blue-500 font-medium mb-1">
     Total Students
@@ -282,7 +282,7 @@ const chartData = courses.map((c:any)=>{
 
 
 {/* OVERALL ATTENDANCE */}
-<div className="bg-gradient-to-br from-green-50 to-white p-6 rounded-2xl border shadow-sm hover:shadow-lg transition">
+<div className="bg-card border border-border p-6 rounded-2xl shadow-sm hover:shadow-md transition">
 
   <p className="text-xs text-green-600 font-medium mb-1">
     Overall Attendance
@@ -299,75 +299,116 @@ const chartData = courses.map((c:any)=>{
 </div>
 
   {/* LOW ATTENDANCE */}
-  <div className="bg-card border rounded-2xl shadow-sm hover:shadow-lg transition duration-300 flex flex-col h-[260px] overflow-hidden">
+<div className="bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition duration-300 flex flex-col h-[260px] overflow-hidden">
 
-    <div className="px-5 py-4 border-b flex justify-between items-center bg-red-50">
-      <h2 className="text-sm font-semibold">Low Attendance</h2>
-      <span className="text-xs text-muted-foreground">Below 75%</span>
-    </div>
+  {/* HEADER */}
+  <div className="px-5 py-4 border-b flex justify-between items-center bg-red-50/60">
+    <h2 className="text-sm font-semibold text-red-600">
+      Low Attendance
+    </h2>
+    <span className="text-xs text-muted-foreground">
+      Below 75%
+    </span>
+  </div>
 
-    <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+  {/* BODY */}
+  <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
 
-      {Object.keys(lowAttendance).length === 0 ? (
-        <p className="text-xs text-center text-muted-foreground mt-6">
-          All good 🎉
-        </p>
-      ) : (
-        Object.keys(lowAttendance).map(sub => (
-          <div key={sub}>
-            <p className="text-xs font-semibold text-primary mb-2">{sub}</p>
+    {Object.keys(lowAttendance).length === 0 ? (
+      <p className="text-xs text-center text-muted-foreground mt-6">
+        All good 🎉
+      </p>
+    ) : (
+      Object.keys(lowAttendance).map(sub => (
+        <div key={sub}>
 
+          {/* COURSE NAME */}
+          <p className="text-xs font-semibold mb-2 text-foreground flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-red-400"></span>
+            {sub}
+          </p>
+
+          {/* STUDENTS */}
+          <div className="space-y-2">
             {[...lowAttendance[sub].values()].map((s:any)=>(
               <div
                 key={s.id}
-                className="flex justify-between items-center text-xs bg-red-50 border border-red-100 px-3 py-1.5 rounded-lg hover:bg-red-100 transition"
+                className="flex justify-between items-center text-xs border border-border px-3 py-2 rounded-lg bg-background hover:bg-red-50/40 hover:border-red-200 transition-all duration-200"
               >
-                <span className="truncate">{s.name}</span>
-                <span className="text-red-600 font-semibold bg-red-100 px-2 py-0.5 rounded-full">
+                <span className="truncate text-foreground">
+                  {s.name}
+                </span>
+
+                {/* PERCENT BADGE */}
+                <span className="text-red-600 font-medium bg-red-100 px-2.5 py-0.5 rounded-full text-[11px]">
                   {s.percent}%
                 </span>
               </div>
             ))}
           </div>
-        ))
-      )}
 
-    </div>
+        </div>
+      ))
+    )}
+
+  </div>
+</div>
+
+ {/* ABSENTEES */}
+<div className="bg-card border border-border rounded-2xl shadow-sm hover:shadow-md transition duration-300 flex flex-col h-[260px] overflow-hidden">
+
+  {/* HEADER */}
+  <div className="px-5 py-4 border-b flex justify-between items-center bg-amber-50/60">
+    <h2 className="text-sm font-semibold text-amber-600">
+      Today's Absentees
+    </h2>
+    <span className="text-xs text-muted-foreground">
+      {selectedDate}
+    </span>
   </div>
 
-  {/* ABSENTEES */}
-  <div className="bg-card border rounded-2xl shadow-sm hover:shadow-lg transition duration-300 flex flex-col h-[260px] overflow-hidden">
+  {/* BODY */}
+  <div className="flex-1 overflow-y-auto px-5 py-3 space-y-4">
 
-    <div className="px-5 py-4 border-b flex justify-between items-center bg-red-50">
-      <h2 className="text-sm font-semibold">Today's Absentees</h2>
-      <span className="text-xs text-muted-foreground">{selectedDate}</span>
-    </div>
+    {Object.keys(absentees).length === 0 ? (
+      <p className="text-xs text-center text-muted-foreground mt-6">
+        No absentees 🎉
+      </p>
+    ) : (
+      Object.keys(absentees).map(sub => (
+        <div key={sub}>
 
-    <div className="flex-1 overflow-y-auto px-5 py-3 space-y-3">
+          {/* COURSE NAME */}
+          <p className="text-xs font-semibold mb-2 text-foreground flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+            {sub}
+          </p>
 
-      {Object.keys(absentees).length === 0 ? (
-        <p className="text-xs text-center text-muted-foreground mt-6">
-          No absentees 🎉
-        </p>
-      ) : (
-        Object.keys(absentees).map(sub => (
-          <div key={sub}>
-            <p className="text-xs font-semibold text-primary mb-2">{sub}</p>
-
+          {/* STUDENTS */}
+          <div className="space-y-2">
             {absentees[sub].map((s:any)=>(
               <div
                 key={s.id}
-                className="text-xs text-red-600 bg-red-50 border border-red-100 px-3 py-1.5 rounded-lg hover:bg-red-100 transition"
+                className="flex justify-between items-center text-xs border border-border px-3 py-2 rounded-lg bg-background hover:bg-amber-50/40 hover:border-amber-200 transition-all duration-200"
               >
-                {s.name}
+                <span className="truncate text-foreground">
+                  {s.name}
+                </span>
+
+                {/* OPTIONAL BADGE */}
+                <span className="text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full text-[11px]">
+                  Absent
+                </span>
               </div>
             ))}
           </div>
-        ))
-      )}
-          </div>
-        </div>
 
+        </div>
+      ))
+    )}
+
+  </div>
+</div>
       </div>
 
       {/* TABLE */}

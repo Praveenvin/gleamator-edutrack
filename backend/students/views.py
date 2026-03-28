@@ -4,6 +4,8 @@ from django.views.decorators.csrf import csrf_exempt
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from django.db import IntegrityError
+from django.db.models import Q
+from django.contrib.auth.models import User
 from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity,AssignmentSubmission, Enrollment, AssignmentSubmission
 from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer, StudentActivitySerializer, AssignmentSubmissionSerializer, EnrollmentSerializer
 import json
@@ -850,225 +852,107 @@ def update_leave_status(request, id):
 
     return Response({"message": f"{status} successfully"})
 
-@api_view(["GET", "POST"])
+@api_view(["GET","POST"])
 def messages_api(request):
-
-    # ================= GET =================
-    if request.method == "GET":
-
-        user_id = request.GET.get("user")
-
+    if request.method=="GET":
+        user_id=request.GET.get("user")
         if user_id:
-            messages = Message.objects.filter(
-                receiver_id=user_id
-            ) | Message.objects.filter(
-                sender_id=user_id
-            )
+            messages=Message.objects.filter(
+                Q(sender_id=user_id)|Q(receiver_id=user_id)
+            ).distinct().order_by("-created_at")
         else:
-            messages = Message.objects.all()
+            messages=Message.objects.all().order_by("-created_at")
+        return Response(MessageSerializer(messages,many=True).data)
 
-        messages = messages.order_by("-created_at")
-        serializer = MessageSerializer(messages, many=True)
-        return Response(serializer.data)
-
-    # ================= POST =================
-    elif request.method == "POST":
-
+    if request.method=="POST":
         try:
-            sender_id = request.data.get("sender")
-            receiver_username = request.data.get("receiver")
+            sender_id=request.data.get("sender")
+            receiver_username=request.data.get("receiver")
+            course_ids=[int(c) for c in request.data.get("courses",[])]
+            to_faculty=str(request.data.get("to_faculty","false")).lower()=="true"
+            broadcast=str(request.data.get("broadcast","false")).lower()=="true"
+            subject=request.data.get("subject")
+            body=request.data.get("message")
 
-            course_ids = request.data.get("courses", [])
-            course_ids = [int(c) for c in course_ids]
-
-            to_faculty = str(request.data.get("to_faculty", "false")).lower() == "true"
-            broadcast = str(request.data.get("broadcast", "false")).lower() == "true"
-
-            subject = request.data.get("subject")
-            body = request.data.get("message")
-
-            # ---------- VALIDATION ----------
             if not sender_id or not subject or not body:
-                return Response(
-                    {"error": "sender, subject, message required"},
-                    status=400
-                )
+                return Response({"error":"sender, subject, message required"},status=400)
 
-            sender = User.objects.get(id=sender_id)
+            sender=User.objects.get(id=sender_id)
 
-            # ============================================================
-            # 1. SINGLE USER MESSAGE
-            # ============================================================
             if receiver_username:
-
-                receiver = User.objects.filter(username=receiver_username).first()
-
+                receiver=User.objects.filter(username=receiver_username).first() or User.objects.filter(email=receiver_username).first()
                 if not receiver:
-                    receiver = User.objects.filter(email=receiver_username).first()
+                    return Response({"error":"Receiver not found"},status=404)
 
-                if not receiver:
-                    return Response({"error": "Receiver not found"}, status=404)
-
-                msg = Message.objects.create(
-                    sender=sender,
-                    receiver=receiver,
-                    subject=subject,
-                    body=body
-                )
-
+                msg=Message.objects.create(sender=sender,receiver=receiver,subject=subject,body=body)
                 if course_ids:
                     msg.courses.add(*course_ids)
 
-                # self copy
-                Message.objects.create(
-                    sender=sender,
-                    receiver=sender,
-                    subject=subject,
-                    body=body
-                )
+                Message.objects.create(sender=sender,receiver=sender,subject=subject,body=body)
+                return Response({"message":"Message sent to user"})
 
-                return Response({"message": "Message sent to user"})
-
-            # ============================================================
-            # 2. COURSE → FACULTY
-            # ============================================================
-            elif course_ids and to_faculty:
-
-                courses = Course.objects.filter(id__in=course_ids)
-
-                sent_users = set()
-                count = 0
-
-                self_msg = Message.objects.create(
-                    sender=sender,
-                    receiver=sender,
-                    subject=subject,
-                    body=body
-                )
+            if course_ids and to_faculty:
+                courses=Course.objects.filter(id__in=course_ids)
+                sent=set();count=0
+                self_msg=Message.objects.create(sender=sender,receiver=sender,subject=subject,body=body)
                 self_msg.courses.add(*course_ids)
 
                 for c in courses:
-
-                    faculty = c.faculty
-                    if not faculty:
-                        continue
-
-                    user = faculty.user   # ✅ FIX
-
-                    if not user:
-                        continue
-
-                    if user.id not in sent_users:
-
-                        msg = Message.objects.create(
-                            sender=sender,
-                            receiver=user,
-                            subject=subject,
-                            body=body
-                        )
-
+                    user=getattr(c.faculty,"user",None)
+                    if user and user.id not in sent:
+                        msg=Message.objects.create(sender=sender,receiver=user,subject=subject,body=body)
                         msg.courses.add(*course_ids)
+                        sent.add(user.id);count+=1
 
-                        sent_users.add(user.id)
-                        count += 1
+                return Response({"message":f"Sent to {count} faculty"})
 
-                return Response({
-                    "message": f"Sent to {count} faculty"
-                })
-
-            # ============================================================
-            # 3. COURSE → STUDENTS  🔥 FIXED
-            # ============================================================
-            elif course_ids:
-
-                enrollments = Enrollment.objects.filter(course_id__in=course_ids)
-
-                sent_users = set()
-                count = 0
-
-                # self copy (faculty)
-                faculty_msg = Message.objects.create(
-                    sender=sender,
-                    receiver=sender,
-                    subject=subject,
-                    body=body
-                )
-                faculty_msg.courses.add(*course_ids)
+            if course_ids:
+                enrollments=Enrollment.objects.filter(course_id__in=course_ids)
+                sent=set();count=0
+                self_msg=Message.objects.create(sender=sender,receiver=sender,subject=subject,body=body)
+                self_msg.courses.add(*course_ids)
 
                 for e in enrollments:
-
-                    student = e.student
-
-                    user = student.user   # 🔥 MAIN FIX
-
-                    if not user:
-                        continue
-
-                    if user.id not in sent_users:
-
-                        msg = Message.objects.create(
-                            sender=sender,
-                            receiver=user,
-                            subject=subject,
-                            body=body
-                        )
-
+                    user=getattr(e.student,"user",None)
+                    if user and user.id not in sent:
+                        msg=Message.objects.create(sender=sender,receiver=user,subject=subject,body=body)
                         msg.courses.add(*course_ids)
+                        sent.add(user.id);count+=1
 
-                        sent_users.add(user.id)
-                        count += 1
+                return Response({"message":f"Sent to {count} students"})
 
-                return Response({
-                    "message": f"Sent to {count} students"
-                })
+            if broadcast:
+                count=0
+                Message.objects.create(sender=sender,receiver=sender,subject=subject,body=body,is_broadcast=True)
+                for s in Student.objects.all():
+                    user=s.user
+                    if user:
+                        Message.objects.create(sender=sender,receiver=user,subject=subject,body=body,is_broadcast=True)
+                        count+=1
+                return Response({"message":f"Broadcast sent to {count} students"})
 
-            # ============================================================
-            # 4. BROADCAST
-            # ============================================================
-            elif broadcast:
-
-                students = Student.objects.all()
-                count = 0
-
-                Message.objects.create(
-                    sender=sender,
-                    receiver=sender,
-                    subject=subject,
-                    body=body,
-                    is_broadcast=True
-                )
-
-                for s in students:
-
-                    user = s.user   # ✅ FIX
-
-                    if not user:
-                        continue
-
-                    Message.objects.create(
-                        sender=sender,
-                        receiver=user,
-                        subject=subject,
-                        body=body,
-                        is_broadcast=True
-                    )
-
-                    count += 1
-
-                return Response({
-                    "message": f"Broadcast sent to {count} students"
-                })
-
-            # ============================================================
-            # FALLBACK
-            # ============================================================
-            return Response(
-                {"error": "No receiver / course / broadcast specified"},
-                status=400
-            )
+            return Response({"error":"No receiver / course / broadcast specified"},status=400)
 
         except Exception as e:
-            return Response({"error": str(e)}, status=500)
+            return Response({"error":str(e)},status=500)
+
+
+@api_view(["PUT","DELETE"])
+def message_detail(request,id):
+    try:
+        message=Message.objects.get(id=id)
+    except Message.DoesNotExist:
+        return Response({"error":"Message not found"},status=404)
+
+    if request.method=="DELETE":
+        message.delete()
+        return Response({"message":"Message deleted successfully"})
+
+    if request.method=="PUT":
+        message.subject=request.data.get("subject",message.subject)
+        message.body=request.data.get("message",message.body)
+        message.save()
+        return Response({"message":"Message updated successfully"})
 
 def change_password(request):
 
@@ -1281,3 +1165,489 @@ def enrollment_detail(request, id):
 
     enrollment.delete()
     return Response({"message":"Removed successfully"})
+
+@api_view(["GET"])
+def student_full_details(request):
+
+    student_id = request.GET.get("id")
+
+    if not student_id:
+        return Response({"error": "student id required"}, status=400)
+
+    try:
+        student = Student.objects.get(id=student_id)
+    except Student.DoesNotExist:
+        return Response({"error": "Student not found"}, status=404)
+
+    # ================= BASIC DETAILS =================
+    student_data = StudentSerializer(student).data
+
+    # ================= COURSES =================
+    enrollments = Enrollment.objects.filter(student=student)
+
+    courses_data = []
+    for e in enrollments:
+        course = e.course
+
+        courses_data.append({
+            "id": course.id,
+            "name": course.course_name,
+            "code": course.course_code,
+            "department": course.department,
+            "semester": course.semester,
+
+            "faculty_name": course.faculty.name if course.faculty else "N/A",
+            "faculty_id": course.faculty.id if course.faculty else None,
+            "faculty_email": course.faculty.email if course.faculty else None,
+            "faculty_designation": course.faculty.designation if course.faculty else None
+        })
+
+    # ================= ATTENDANCE =================
+    attendance_data = []
+
+    for e in enrollments:
+        course = e.course
+
+        records = Attendance.objects.filter(
+            student=student,
+            course=course
+        )
+
+        total = records.count()
+        present = records.filter(status="Present").count()
+        percentage = (present / total * 100) if total > 0 else 0
+
+        attendance_data.append({
+            "course": course.course_name,
+            "course_id": course.id,
+            "faculty": course.faculty.name if course.faculty else "N/A",
+            "present": present,
+            "total": total,
+            "percentage": round(percentage, 2)
+        })
+
+    # ================= MARKS =================
+    marks_raw = InternalMarks.objects.filter(student=student)
+
+    def get_grade_point(mark):
+        if mark is None:
+            return None
+        if mark >= 90:
+            return 10
+        elif mark >= 80:
+            return 9
+        elif mark >= 70:
+            return 8
+        elif mark >= 60:
+            return 7
+        elif mark >= 50:
+            return 6
+        elif mark >= 40:
+            return 5
+        else:
+            return 0
+
+    def get_grade(gp):
+        return {
+            10: "O",
+            9: "A+",
+            8: "A",
+            7: "B+",
+            6: "B",
+            5: "C",
+            0: "F"
+        }.get(gp, None)
+
+    marks_map = {}
+
+    for m in marks_raw:
+        course_name = m.course.course_name
+
+        if course_name not in marks_map:
+            marks_map[course_name] = {
+                "course": course_name,
+                "course_id": m.course.id,
+                "faculty": m.course.faculty.name if m.course.faculty else "N/A",
+                "IA1": None,
+                "IA2": None,
+                "FINAL": None,
+                "grade": None
+            }
+
+        marks_map[course_name][m.exam_type] = m.marks
+
+    # 🔥 ADD GRADE
+    for m in marks_map.values():
+        gp = get_grade_point(m["FINAL"])
+        m["grade"] = get_grade(gp)
+
+    marks_data = list(marks_map.values())
+
+    # ================= ASSIGNMENTS =================
+    assignments = Assignment.objects.filter(
+        course__in=[e.course for e in enrollments]
+    )
+
+    assignment_data = []
+
+    for a in assignments:
+        submission = AssignmentSubmission.objects.filter(
+            student=student,
+            assignment=a
+        ).first()
+
+        assignment_data.append({
+            "title": a.title,
+            "course": a.course.course_name if a.course else "N/A",
+            "course_id": a.course.id if a.course else None,
+            "faculty": a.course.faculty.name if a.course and a.course.faculty else "N/A",
+            "status": submission.status if submission else "Pending",
+            "marks": submission.marks if submission else None
+        })
+
+    # ================= LEAVES =================
+    leaves = LeaveRequest.objects.filter(student=student)
+
+    leaves_data = [{
+        "from": l.from_date,
+        "to": l.to_date,
+        "reason": l.reason,
+        "status": l.status
+    } for l in leaves]
+
+    # ================= OVERVIEW =================
+    total_courses = len(courses_data)
+
+    avg_attendance = (
+        sum(a["percentage"] for a in attendance_data) / len(attendance_data)
+        if attendance_data else 0
+    )
+
+    avg_marks_list = [
+        m for row in marks_data
+        for m in [row["IA1"], row["IA2"], row["FINAL"]]
+        if m is not None
+    ]
+
+    avg_marks = (
+        sum(avg_marks_list) / len(avg_marks_list)
+        if avg_marks_list else 0
+    )
+
+    pending_assignments = sum(
+        1 for a in assignment_data if a["status"] != "Submitted"
+    )
+
+    # ================= CGPA =================
+    cgpa_list = []
+
+    for m in marks_data:
+        gp = get_grade_point(m.get("FINAL"))
+        if gp is not None:
+            cgpa_list.append(gp)
+
+    cgpa = sum(cgpa_list) / len(cgpa_list) if cgpa_list else 0
+
+    overview = {
+        "total_courses": total_courses,
+        "avg_attendance": round(avg_attendance, 2),
+        "avg_marks": round(avg_marks, 2),
+        "pending_assignments": pending_assignments,
+        "cgpa": round(cgpa, 2)   # 🔥 FINAL CGPA
+    }
+
+    # ================= FINAL RESPONSE =================
+    return Response({
+        "student": student_data,
+        "overview": overview,
+        "courses": courses_data,
+        "attendance": attendance_data,
+        "marks": marks_data,
+        "assignments": assignment_data,
+        "leaves": leaves_data
+    })
+
+@api_view(["GET"])
+def faculty_full_details(request):
+
+    faculty_id = request.GET.get("id")
+
+    if not faculty_id:
+        return Response({"error": "faculty id required"}, status=400)
+
+    try:
+        faculty = Faculty.objects.get(id=faculty_id)
+    except Faculty.DoesNotExist:
+        return Response({"error": "Faculty not found"}, status=404)
+
+    # ================= BASIC DETAILS =================
+    faculty_data = FacultySerializer(faculty).data
+
+    # ================= COURSES =================
+    courses = Course.objects.filter(faculty=faculty)
+
+    courses_data = []
+    for c in courses:
+        courses_data.append({
+            "id": c.id,
+            "name": c.course_name,
+            "code": c.course_code,
+            "department": c.department,
+            "semester": c.semester
+        })
+
+    # ================= STUDENTS =================
+    enrollments = Enrollment.objects.filter(course__in=courses)
+
+    students_set = set()
+    students_data = []
+
+    for e in enrollments:
+        if e.student.id not in students_set:
+            students_set.add(e.student.id)
+            students_data.append({
+                "id": e.student.id,
+                "name": e.student.name,
+                "usn": e.student.usn,
+                "department": e.student.department
+            })
+
+    # ================= ATTENDANCE =================
+    attendance_data = []
+
+    for c in courses:
+
+        records = Attendance.objects.filter(course=c)
+
+        total = records.count()
+        present = records.filter(status="Present").count()
+
+        percentage = (present / total * 100) if total > 0 else 0
+
+        attendance_data.append({
+            "course": c.course_name,
+            "course_id": c.id,
+            "percentage": round(percentage, 2)
+        })
+
+    # ================= ASSIGNMENTS =================
+    assignments = Assignment.objects.filter(course__in=courses)
+
+    assignment_data = []
+
+    for a in assignments:
+
+        submissions = AssignmentSubmission.objects.filter(assignment=a)
+
+        submitted = submissions.count()
+        evaluated = submissions.filter(marks__isnull=False).count()
+
+        assignment_data.append({
+            "title": a.title,
+            "course": a.course.course_name if a.course else "N/A",
+            "total_submissions": submitted,
+            "evaluated": evaluated,
+            "pending": submitted - evaluated,
+            "due_date": a.due_date
+        })
+
+    # ================= LEAVES =================
+    leaves = LeaveRequest.objects.filter(faculty=faculty)
+
+    leaves_data = [{
+        "from": l.from_date,
+        "to": l.to_date,
+        "reason": l.reason,
+        "status": l.status
+    } for l in leaves]
+
+    # ================= OVERVIEW =================
+    total_courses = len(courses_data)
+    total_students = len(students_data)
+
+    avg_attendance = (
+        sum(a["percentage"] for a in attendance_data) / len(attendance_data)
+        if attendance_data else 0
+    )
+
+    pending_assignments = sum(
+        a["pending"] for a in assignment_data
+    )
+
+    overview = {
+        "total_courses": total_courses,
+        "total_students": total_students,
+        "avg_attendance": round(avg_attendance, 2),
+        "pending_assignments": pending_assignments
+    }
+
+    # ================= FINAL RESPONSE =================
+    return Response({
+        "faculty": faculty_data,
+        "overview": overview,
+        "courses": courses_data,
+        "students": students_data,
+        "attendance": attendance_data,
+        "assignments": assignment_data,
+        "leaves": leaves_data
+    })
+
+@api_view(["GET"])
+def course_full_details(request):
+
+    course_id = request.GET.get("id")
+
+    if not course_id:
+        return Response({"error": "course id required"}, status=400)
+
+    try:
+        course = Course.objects.get(id=course_id)
+    except Course.DoesNotExist:
+        return Response({"error": "Course not found"}, status=404)
+
+    # ================= COURSE INFO =================
+    course_data = {
+        "id": course.id,
+        "name": course.course_name,
+        "code": course.course_code,
+        "department": course.department,
+        "semester": course.semester,
+
+        "faculty_name": course.faculty.name if course.faculty else "N/A",
+        "faculty_email": course.faculty.email if course.faculty else None
+    }
+
+    # ================= STUDENTS =================
+    enrollments = Enrollment.objects.filter(course=course)
+
+    students_data = []
+    student_ids = []
+
+    for e in enrollments:
+        s = e.student
+        student_ids.append(s.id)
+
+        students_data.append({
+            "id": s.id,
+            "name": s.name,
+            "usn": s.usn,
+            "department": s.department,
+            "year": s.year
+        })
+
+    # ================= ATTENDANCE =================
+    attendance_data = []
+
+    total_present = 0
+    total_classes = 0
+
+    for s in student_ids:
+
+        records = Attendance.objects.filter(
+            student_id=s,
+            course=course
+        )
+
+        total = records.count()
+        present = records.filter(status="Present").count()
+
+        percentage = (present / total * 100) if total > 0 else 0
+
+        total_present += present
+        total_classes += total
+
+        student_obj = Student.objects.get(id=s)
+
+        attendance_data.append({
+            "student": student_obj.name,
+            "usn": student_obj.usn,
+            "present": present,
+            "total": total,
+            "percentage": round(percentage, 2)
+        })
+
+    overall_attendance = (
+        (total_present / total_classes * 100)
+        if total_classes > 0 else 0
+    )
+
+    # ================= MARKS =================
+    marks_raw = InternalMarks.objects.filter(course=course)
+
+    marks_map = {}
+
+    for m in marks_raw:
+
+        sid = m.student.id
+
+        if sid not in marks_map:
+            marks_map[sid] = {
+                "student": m.student.name,
+                "usn": m.student.usn,
+                "IA1": None,
+                "IA2": None,
+                "FINAL": None
+            }
+
+        marks_map[sid][m.exam_type] = m.marks
+
+    marks_data = list(marks_map.values())
+
+    # ================= ASSIGNMENTS =================
+    assignments = Assignment.objects.filter(course=course)
+
+    assignment_data = []
+
+    total_submissions = 0
+    total_pending = 0
+
+    for a in assignments:
+
+        submissions = AssignmentSubmission.objects.filter(assignment=a)
+
+        submitted = submissions.count()
+        evaluated = submissions.filter(marks__isnull=False).count()
+
+        total_submissions += submitted
+        total_pending += (submitted - evaluated)
+
+        assignment_data.append({
+            "title": a.title,
+            "due_date": a.due_date,
+            "submitted": submitted,
+            "evaluated": evaluated,
+            "pending": submitted - evaluated
+        })
+
+    # ================= OVERVIEW =================
+    total_students = len(students_data)
+
+    avg_marks_list = [
+        m for row in marks_data
+        for m in [row["IA1"], row["IA2"], row["FINAL"]]
+        if m is not None
+    ]
+
+    avg_marks = (
+        sum(avg_marks_list) / len(avg_marks_list)
+        if avg_marks_list else 0
+    )
+
+    overview = {
+        "total_students": total_students,
+        "overall_attendance": round(overall_attendance, 2),
+        "avg_marks": round(avg_marks, 2),
+        "total_assignments": len(assignment_data),
+        "total_submissions": total_submissions,
+        "pending_evaluation": total_pending
+    }
+
+    # ================= FINAL RESPONSE =================
+    return Response({
+        "course": course_data,
+        "overview": overview,
+        "students": students_data,
+        "attendance": attendance_data,
+        "marks": marks_data,
+        "assignments": assignment_data
+    })
