@@ -5,7 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
-
+import ResetPassword from "@/pages/ResetPassword";
 import Login from "./pages/Login";
 import Index from "./pages/Index";
 import Attendance from "./pages/Attendance";
@@ -50,7 +50,8 @@ const App = () => (
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
             <Route path="/login" element={<Login />} />
-
+          
+            <Route path="/reset-password/:token" element={<ResetPassword />} />
             {/* Student routes */}
             <Route path="/student-dashboard" element={<ProtectedRoute role="student"><Index /></ProtectedRoute>} />
             <Route path="/student-dashboard/attendance" element={<ProtectedRoute role="student"><Attendance /></ProtectedRoute>} />

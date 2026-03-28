@@ -7,8 +7,8 @@ from django.db import IntegrityError
 from .models import UserProfile, Student, Faculty, Course, Attendance, Assignment, InternalMarks,StudyMaterial, Notification, Settings, LeaveRequest, Message,Timetable, StudentActivity,AssignmentSubmission, Enrollment, AssignmentSubmission
 from .serializers import StudentSerializer, FacultySerializer, CourseSerializer, AttendanceSerializer, AssignmentSerializer, InternalMarksSerializer, StudyMaterialSerializer, NotificationSerializer, SettingsSerializer, LeaveRequestSerializer, MessageSerializer, TimetableSerializer, StudentActivitySerializer, AssignmentSubmissionSerializer, EnrollmentSerializer
 import json
-
-
+import uuid
+reset_tokens = {}
 @csrf_exempt
 def login_user(request):
 
@@ -34,20 +34,30 @@ def login_user(request):
 
         profile = UserProfile.objects.get(user=user)
 
+        # ✅ INIT
         faculty_id = None
+        student_id = None
 
-        # ✅ ADD THIS BLOCK
+        # ✅ STUDENT LINK (CORRECT WAY)
+        if profile.role == "student":
+            student = Student.objects.filter(user=user).first()
+            if student:
+                student_id = student.id
+
+        # ✅ FACULTY LINK (CORRECT WAY)
         if profile.role == "faculty":
-            faculty = Faculty.objects.filter(email=user.username).first()
+            faculty = Faculty.objects.filter(user=user).first()
             if faculty:
                 faculty_id = faculty.id
 
+        # ✅ FINAL RESPONSE
         return JsonResponse({
             "success": True,
             "id": user.id,
             "username": user.username,
             "role": profile.role,
-            "faculty_id": faculty_id,   # ✅ NEW FIELD
+            "faculty_id": faculty_id,
+            "student_id": student_id,
             "message": "Login successful"
         })
 
@@ -545,6 +555,12 @@ def submit_assignment(request):
     if not assignment_id:
         return Response({"error": "assignment required"}, status=400)
 
+    if not student_id and not faculty_id:
+        return Response({"error": "student or faculty required"}, status=400)
+
+    if not file:
+        return Response({"error": "file required"}, status=400)
+
     # ---------- CHECK EXISTING ----------
     if student_id:
         existing = AssignmentSubmission.objects.filter(
@@ -561,37 +577,28 @@ def submit_assignment(request):
     if existing:
         existing.file = file
         existing.status = "Submitted"
-
-        if student_id:
-            existing.submitted_by = "student"
-        else:
-            existing.submitted_by = "faculty"
-
+        existing.submitted_by = "student" if student_id else "faculty"
         existing.save()
 
-        return Response({"message": "Submission updated"})
+        return Response({
+            "message": "Submission updated",
+            "status": "Submitted"
+        })
 
     # ---------- CREATE ----------
-    if student_id:
-        AssignmentSubmission.objects.create(
-            student_id=student_id,
-            assignment_id=assignment_id,
-            file=file,
-            status="Submitted",
-            submitted_by="student"
-        )
-    else:
-        AssignmentSubmission.objects.create(
-            faculty_id=faculty_id,
-            assignment_id=assignment_id,
-            file=file,
-            status="Submitted",
-            submitted_by="faculty"
-        )
+    submission = AssignmentSubmission.objects.create(
+        student_id=student_id if student_id else None,
+        faculty_id=faculty_id if faculty_id else None,
+        assignment_id=assignment_id,
+        file=file,
+        status="Submitted",
+        submitted_by="student" if student_id else "faculty"
+    )
 
-    return Response({"message": "Submitted successfully"})
-
-
+    return Response({
+        "message": "Submitted successfully",
+        "status": "Submitted"
+    })
 @api_view(['GET', 'POST'])
 def marks_api(request):
 
@@ -1077,6 +1084,43 @@ def change_password(request):
     user.save()
 
     return Response({"message":"Password updated"})
+@api_view(["POST"])
+def forgot_password(request):
+
+    username = request.data.get("username")
+
+    user = User.objects.filter(username=username).first()
+
+    if not user:
+        return Response({"error": "User not found"}, status=404)
+
+    token = str(uuid.uuid4())
+
+    reset_tokens[token] = user.id
+
+    return Response({
+        "message": "Reset link generated",
+        "reset_link": f"http://localhost:5173/reset-password/{token}"
+    })
+
+@api_view(["POST"])
+def reset_password(request, token):
+
+    new_password = request.data.get("password")
+
+    user_id = reset_tokens.get(token)
+
+    if not user_id:
+        return Response({"error": "Invalid or expired token"}, status=400)
+
+    user = User.objects.get(id=user_id)
+    user.set_password(new_password)
+    user.save()
+
+    del reset_tokens[token]
+
+    return Response({"message": "Password updated successfully"})
+
 
 @api_view(["GET","PUT","DELETE"])
 def student_detail(request, id):

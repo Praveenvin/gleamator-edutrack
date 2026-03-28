@@ -158,37 +158,42 @@ const FacultyAssignments = () => {
 };
   const submitAssignment = async () => {
   try {
-
     if (!submitFile) {
       setSubmitError("Please select a file");
       return;
     }
 
-    const userId = localStorage.getItem("faculty_id");
+    const facultyId = localStorage.getItem("faculty_id");
+
+    if (!facultyId) {
+      setSubmitError("Faculty not found. Please login again.");
+      return;
+    }
 
     const formData = new FormData();
     formData.append("assignment", String(currentAssignment?.id));
-    selectedCourses.forEach(c => {
-  formData.append("courses", c.toString());
-});          // ✅ FIX
-    formData.append("submitted_by", "faculty");         // ✅ FIX
+    formData.append("faculty", facultyId);
     formData.append("file", submitFile);
 
     await axios.post(
       "http://127.0.0.1:8000/api/submit-assignment/",
-      formData
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
     );
 
     setSubmitModal(false);
     setSubmitFile(null);
     setSubmitError("");
-
     setMessage("Assignment submitted successfully");
 
     fetchAssignments();
 
   } catch (err) {
-    console.error(err);
+    console.error("SUBMISSION ERROR:", err);
     setSubmitError("Submission failed. Try again.");
   }
 };

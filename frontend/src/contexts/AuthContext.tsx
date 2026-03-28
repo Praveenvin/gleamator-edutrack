@@ -31,18 +31,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Load user from localStorage
   useEffect(() => {
+  const stored = localStorage.getItem("user");
 
-    const stored = localStorage.getItem("user");
+  if (stored) {
+    try {
+      const parsedUser = JSON.parse(stored);
 
-    if (stored) {
-      try {
-        setUser(JSON.parse(stored));
-      } catch {
-        localStorage.removeItem("user");
+      setUser(parsedUser);
+
+      const currentPath = window.location.pathname;
+      const correctPath = rolePaths[parsedUser.role];
+
+      // 🔥 ONLY redirect if wrong page
+      if (currentPath === "/" || currentPath === "/login") {
+        navigate(correctPath);
       }
-    }
 
-  }, []);
+    } catch {
+      localStorage.removeItem("user");
+    }
+  }
+}, []);
 
   const login = async (username: string, password: string) => {
 
@@ -57,7 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       );
 
       const data = res.data;
-
+      console.log("LOGIN RESPONSE:", data);
       const role = data.role?.toLowerCase();
 
       if (!["admin","faculty","student"].includes(role)) {
@@ -81,7 +90,12 @@ localStorage.setItem("role", data.role);
 
 // optional but useful
 localStorage.setItem("user_id", data.id);
-
+if (data.faculty_id) {
+  localStorage.setItem("faculty_id", data.faculty_id);
+}
+if (data.student_id) {
+  localStorage.setItem("student_id", data.student_id);
+}
 // ✅ THEN NAVIGATE
 navigate(rolePaths[newUser.role]);
 
@@ -99,7 +113,7 @@ navigate(rolePaths[newUser.role]);
 
     setUser(null);
 
-    localStorage.removeItem("user");
+    localStorage.clear();
 
     navigate("/login");
   };

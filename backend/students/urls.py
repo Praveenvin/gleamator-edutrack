@@ -30,6 +30,8 @@ from .views import (
     messages_api,
     assignment_submissions,
     update_leave_status,
+    forgot_password,
+    reset_password,
 )
 
 
@@ -62,5 +64,7 @@ urlpatterns = [
     path("enrollments/", enrollment_api),
     path("enrollments/<int:id>/", enrollment_detail),
     path("assignment-submissions/", assignment_submissions),
-    path("update-leave-status/<int:id>/", update_leave_status)
+    path("update-leave-status/<int:id>/", update_leave_status),
+    path("forgot-password/", forgot_password),
+    path("reset-password/<str:token>/", reset_password),
 ]
