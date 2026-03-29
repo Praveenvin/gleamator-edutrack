@@ -20,6 +20,7 @@ import {
   Calendar,
   ClipboardList,
   FileText,
+  Download,
 } from "lucide-react";
 
 // ── Theme (matches AdminStudentDetail exactly) ────────────────────────────────
@@ -58,6 +59,173 @@ const AdminFacultyDetail = () => {
     } catch (err) {
       console.error("Failed to fetch faculty data:", err);
     }
+  };
+
+  const downloadPDF = async () => {
+    const jsPDF = (await import("jspdf")).default;
+    const autoTable = (await import("jspdf-autotable")).default;
+
+    const doc = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+
+    // ── Header ───────────────────────────────────────────────────────
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, pageW, 28, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(faculty.name, 14, 12);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${faculty.designation}  ·  ${faculty.department}`, 14, 22);
+
+    let y = 36;
+
+    // ── Faculty Info ─────────────────────────────────────────────────
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Faculty Information", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Field", "Value"]],
+      body: [
+        ["Email",          faculty.email],
+        ["Department",     faculty.department],
+        ["Designation",    faculty.designation],
+        ["Total Courses",  String(overview.total_courses)],
+        ["Total Students", String(overview.total_students)],
+        ["Avg Attendance", `${overview.avg_attendance}%`],
+        ["Pending Work",   String(overview.pending_assignments)],
+      ],
+      theme: "grid",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 } },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Courses ──────────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Courses", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Course Name", "Code", "Department", "Semester"]],
+      body: courses.map((c: any) => [c.name, c.code, c.department, `Sem ${c.semester}`]),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Students ─────────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Students", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Name", "USN", "Department"]],
+      body: students.map((s: any) => [s.name, s.usn, s.department]),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Attendance ───────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Attendance by Course", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Course", "Attendance %", "Status"]],
+      body: attendance.map((a: any) => {
+        const pct = Number(a.percentage);
+        return [a.course, `${pct}%`, pct >= 75 ? "Good" : pct >= 60 ? "Low" : "Critical"];
+      }),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      didParseCell: (hookData: any) => {
+        if (hookData.column.index === 2 && hookData.section === "body") {
+          const val = hookData.cell.text[0];
+          if (val === "Good")     hookData.cell.styles.textColor = [22, 163, 74];
+          if (val === "Low")      hookData.cell.styles.textColor = [217, 119, 6];
+          if (val === "Critical") hookData.cell.styles.textColor = [220, 38, 38];
+        }
+      },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Assignments ──────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Assignments", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Title", "Course", "Submitted", "Evaluated", "Status"]],
+      body: assignments.map((a: any) => {
+        const pending = Number(a.pending ?? (a.total_submissions - a.evaluated));
+        return [a.title, a.course, a.total_submissions, a.evaluated, pending > 0 ? "Pending" : "Completed"];
+      }),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Leaves ───────────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Leaves", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["From", "To", "Reason", "Status"]],
+      body: leaves.map((l: any) => [l.from, l.to, l.reason, l.status]),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+
+    // ── Footer ───────────────────────────────────────────────────────
+    const pageCount = (doc.internal as any).getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Generated on ${new Date().toLocaleDateString()}  ·  Page ${i} of ${pageCount}`,
+        pageW / 2, doc.internal.pageSize.getHeight() - 8,
+        { align: "center" }
+      );
+    }
+
+    doc.save(`${faculty.name.replace(/\s+/g, "_")}_Report.pdf`);
   };
 
   if (!data) {
@@ -107,14 +275,29 @@ const AdminFacultyDetail = () => {
 
       <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 2px" }}>
 
-        {/* Back ──────────────────────────────────────────────────────── */}
-        <button className="fd-back" onClick={() => navigate(-1)} style={{
-          display:"flex", alignItems:"center", gap:6, marginBottom:20,
-          fontSize:13, color:"#64748b", background:"none", border:"none",
-          cursor:"pointer", padding:0,
-        }}>
-          <ArrowLeft size={15}/> Back
-        </button>
+        {/* Back + Download ───────────────────────────────────────── */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <button className="fd-back" onClick={() => navigate(-1)} style={{
+            display:"flex", alignItems:"center", gap:6,
+            fontSize:13, color:"#64748b", background:"none", border:"none",
+            cursor:"pointer", padding:0,
+          }}>
+            <ArrowLeft size={15}/> Back to faculty
+          </button>
+
+          <button onClick={downloadPDF} style={{
+            display:"flex", alignItems:"center", gap:6,
+            fontSize:13, fontWeight:500, color:BLUE,
+            background:BLUE_LIGHT, border:`1px solid ${BLUE}30`,
+            borderRadius:8, padding:"7px 14px", cursor:"pointer",
+            transition:"background 0.15s",
+          }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#dbeafe")}
+            onMouseLeave={e => (e.currentTarget.style.background = BLUE_LIGHT)}
+          >
+            <Download size={14}/> Download PDF
+          </button>
+        </div>
 
         {/* Profile card ────────────────────────────────────────────── */}
         <div className="fd-fadeup" style={{
@@ -123,7 +306,6 @@ const AdminFacultyDetail = () => {
           boxShadow:"0 1px 4px rgba(0,0,0,0.05)",
         }}>
           <div style={{ display:"flex", alignItems:"center", gap:18, marginBottom:20 }}>
-            {/* Avatar */}
             <div style={{
               width:56, height:56, borderRadius:"50%",
               background:BLUE_LIGHT, border:`2px solid ${BLUE}`,
@@ -180,13 +362,12 @@ const AdminFacultyDetail = () => {
         {/* ══ OVERVIEW ══════════════════════════════════════════════════ */}
         {activeTab === "overview" && (
           <div className="fd-fadeup">
-            {/* Stat cards */}
             <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:16, marginBottom:20 }}>
               {[
-                { label:"Total Courses",  value:overview.total_courses,     hi:false },
-                { label:"Total Students", value:overview.total_students,    hi:false },
+                { label:"Total Courses",  value:overview.total_courses,        hi:false },
+                { label:"Total Students", value:overview.total_students,       hi:false },
                 { label:"Avg Attendance", value:`${overview.avg_attendance}%`, hi:false },
-                { label:"Pending Work",   value:overview.pending_assignments, hi:true  },
+                { label:"Pending Work",   value:overview.pending_assignments,  hi:true  },
               ].map(({ label, value, hi }) => (
                 <div key={label} className="fd-stat" style={{
                   background:"#fff", borderRadius:14, padding:"18px 22px",
@@ -199,7 +380,6 @@ const AdminFacultyDetail = () => {
               ))}
             </div>
 
-            {/* Attendance bar chart */}
             <div style={{
               background:"#fff", borderRadius:14, border:"1px solid #e2e8f0",
               padding:"24px 20px", boxShadow:"0 1px 4px rgba(0,0,0,0.04)",

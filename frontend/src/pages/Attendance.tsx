@@ -1,8 +1,9 @@
 import { DashboardLayout } from "@/components/DashboardLayout";
 import { useEffect, useState } from "react";
 import axios from "axios";
-
+import { useNavigate } from "react-router-dom";
 interface AttendanceRow {
+  id: number;
   subject: string;
   total: number;
   attended: number;
@@ -10,7 +11,7 @@ interface AttendanceRow {
 }
 
 const Attendance = () => {
-
+  const navigate = useNavigate();
   const [data,setData] = useState<AttendanceRow[]>([]);
   const [overall,setOverall] = useState<number>(0);
 
@@ -38,6 +39,7 @@ const Attendance = () => {
 
         if(!courseMap[course]){
           courseMap[course] = {
+            id: course,
             subject:r.course_name || `Course ${course}`,
             total:0,
             attended:0
@@ -60,6 +62,7 @@ const Attendance = () => {
             : 0;
 
         return {
+          id: c.id,
           subject:c.subject,
           total:c.total,
           attended:c.attended,
@@ -162,7 +165,12 @@ className="border-b border-border last:border-0 hover:bg-secondary/30"
 >
 
 <td className="px-6 py-4 text-foreground font-medium">
-{r.subject}
+  <span
+  className="cursor-pointer text-foreground hover:opacity-70"
+  onClick={() => navigate(`/student-dashboard/course/${r.id}`)}
+>
+  {r.subject}
+</span>
 </td>
 
 <td className="px-6 py-4 font-mono-data text-foreground">

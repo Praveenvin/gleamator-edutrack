@@ -446,7 +446,7 @@ const pass = evaluated
             <td className="px-4 py-3 font-medium">
   <span
     onClick={() => navigate(`/admin-dashboard/student/${s.id}`)}
-    className="cursor-pointer hover:underline"
+    className="cursor-pointer text-foreground hover:opacity-70"
   >
     {s.name}
   </span>

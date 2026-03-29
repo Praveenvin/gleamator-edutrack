@@ -2,7 +2,7 @@ import { FacultyDashboardLayout } from "@/components/FacultyDashboardLayout";
 import { Pencil, Trash2, Plus, X, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 import axios from "axios";
-
+import { useNavigate } from "react-router-dom";
 interface Course {
   id?: number;
   course_name: string;
@@ -34,7 +34,7 @@ const FacultyCourses = () => {
   const [showModal,setShowModal] = useState(false);
   const [editing,setEditing] = useState(false);
   const [deleteId,setDeleteId] = useState<number | null>(null);
-
+  const navigate = useNavigate();
   const [message,setMessage] = useState<string | null>(null);
   const [formError,setFormError] = useState<string | null>(null);
 
@@ -360,7 +360,14 @@ try{
                   {c.course_code}
                 </td>
 
-                <td className="px-4 py-3">{c.course_name}</td>
+                <td className="px-4 py-3 font-medium">
+  <span
+    onClick={() => navigate(`/faculty-dashboard/course/${c.id}`)}
+    className="cursor-pointer text-foreground hover:opacity-70"
+  >
+    {c.course_name}
+  </span>
+</td>
 
                 <td className="px-4 py-3 text-muted-foreground">
                   {c.department}

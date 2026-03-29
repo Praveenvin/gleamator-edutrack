@@ -21,6 +21,7 @@ import {
   Calendar,
   ClipboardList,
   FileText,
+  Download,
 } from "lucide-react";
 
 // ── Theme ────────────────────────────────────────────────────────────────────
@@ -32,24 +33,6 @@ const PALETTE    = ["#2563eb","#0891b2","#7c3aed","#059669","#d97706","#dc2626"]
 //  MARK SCHEME
 //  IA1, IA2  → out of 30  each
 //  FINAL     → out of 100
-//
-//  EFFECTIVE MARK & SCHEME (determines which threshold table to use):
-//    Priority 1: FINAL present                → use FINAL, scheme = "final"  (out of 100)
-//    Priority 2: Both IA1 & IA2 present       → use (IA1+IA2)/2, scheme = "ia" (out of 30)
-//    Priority 3: Only IA1 present             → use IA1,         scheme = "ia" (out of 30)
-//    Priority 4: Nothing                      → null, excluded from CGPA
-//
-//  GRADE POINT & LETTER GRADE use percentage of the scheme's max:
-//    >= 90% → GP 10, Grade O
-//    >= 80% → GP  9, Grade A+
-//    >= 70% → GP  8, Grade A
-//    >= 60% → GP  7, Grade B+
-//    >= 50% → GP  6, Grade B
-//    >= 40% → GP  5, Grade C
-//    <  40% → GP  0, Grade F
-//
-//  So for IA (max 30):  O ≥27, A+ ≥24, A ≥21, B+ ≥18, B ≥15, C ≥12
-//  For Final (max 100): O ≥90, A+ ≥80, A ≥70, B+ ≥60, B ≥50, C ≥40
 // =============================================================================
 
 type Scheme = "ia" | "final";
@@ -57,11 +40,9 @@ type Scheme = "ia" | "final";
 const toNum = (v: any): number | null =>
   v != null && v !== "" && !isNaN(Number(v)) ? Number(v) : null;
 
-/** Returns { mark, scheme } or null if no marks available. */
 const getEffective = (m: any): { mark: number; scheme: Scheme } | null => {
   const fin = toNum(m.FINAL);
   if (fin !== null) return { mark: fin, scheme: "final" };
-
   const ia1 = toNum(m.IA1);
   const ia2 = toNum(m.IA2);
   if (ia1 !== null && ia2 !== null) return { mark: (ia1 + ia2) / 2, scheme: "ia" };
@@ -71,7 +52,6 @@ const getEffective = (m: any): { mark: number; scheme: Scheme } | null => {
 
 const MAX: Record<Scheme, number> = { ia: 30, final: 100 };
 
-/** Grade point from mark + scheme. Compares as percentage of max. */
 const toGradePoint = (mark: number, scheme: Scheme): number => {
   const pct = (mark / MAX[scheme]) * 100;
   if (pct >= 90) return 10;
@@ -83,7 +63,6 @@ const toGradePoint = (mark: number, scheme: Scheme): number => {
   return 0;
 };
 
-/** Letter grade from mark + scheme. */
 const toLetterGrade = (mark: number, scheme: Scheme): string => {
   const pct = (mark / MAX[scheme]) * 100;
   if (pct >= 90) return "O";
@@ -95,25 +74,18 @@ const toLetterGrade = (mark: number, scheme: Scheme): string => {
   return "F";
 };
 
-/** Gets letter grade for a course row. "—" when no marks yet. */
 const getCourseGrade = (m: any): string => {
   const eff = getEffective(m);
   if (!eff) return "—";
   return toLetterGrade(eff.mark, eff.scheme);
 };
 
-/**
- * CGPA across only courses that have at least one mark.
- * Each course contributes one grade point derived from its effective mark
- * and the correct max for that scheme.
- */
 const calculateCGPA = (marks: any[]): string => {
   if (!marks?.length) return "N/A";
   const gps = marks
     .map(getEffective)
     .filter((v): v is { mark: number; scheme: Scheme } => v !== null)
     .map(({ mark, scheme }) => toGradePoint(mark, scheme));
-
   if (!gps.length) return "N/A";
   return (gps.reduce((a, b) => a + b, 0) / gps.length).toFixed(2);
 };
@@ -136,11 +108,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 // ── Main Component ────────────────────────────────────────────────────────────
 const AdminStudentDetail = () => {
   const { user } = useAuth();
-
-const Layout =
-  user?.role === "faculty"
-    ? FacultyDashboardLayout
-    : AdminDashboardLayout;
+  const Layout = user?.role === "faculty" ? FacultyDashboardLayout : AdminDashboardLayout;
   const { id } = useParams();
   const navigate = useNavigate();
   const [data, setData]           = useState<any>(null);
@@ -158,18 +126,199 @@ const Layout =
     }
   };
 
+  const downloadPDF = async () => {
+    const jsPDF     = (await import("jspdf")).default;
+    const autoTable = (await import("jspdf-autotable")).default;
+
+    const doc   = new jsPDF();
+    const pageW = doc.internal.pageSize.getWidth();
+
+    // ── Header ───────────────────────────────────────────────────────
+    doc.setFillColor(37, 99, 235);
+    doc.rect(0, 0, pageW, 28, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text(student.name, 14, 12);
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text(`${student.department}  ·  Year ${student.year}  ·  ${student.usn}`, 14, 22);
+
+    let y = 36;
+
+    // ── Student Info ─────────────────────────────────────────────────
+    doc.setTextColor(30, 41, 59);
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("Student Information", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Field", "Value"]],
+      body: [
+        ["USN",          student.usn],
+        ["Department",   student.department],
+        ["Year",         `Year ${student.year}`],
+        ["Email",        student.email],
+        ["Phone",        student.phone],
+        ["CGPA",         String(overview.cgpa)],
+        ["Avg Marks",    String(overview.avg_marks)],
+        ["Avg Attendance", `${overview.avg_attendance}%`],
+      ],
+      theme: "grid",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: 50 } },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Courses ──────────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Courses", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Course Name", "Code", "Faculty", "Semester"]],
+      body: courses.map((c: any) => [c.name, c.code, c.faculty_name, `Sem ${c.semester}`]),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Attendance ───────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Attendance by Course", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Course", "Attendance %", "Status"]],
+      body: attendance.map((a: any) => {
+        const pct = Number(a.percentage);
+        return [a.course, `${pct}%`, pct >= 75 ? "Good" : pct >= 60 ? "Low" : "Critical"];
+      }),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      didParseCell: (hookData: any) => {
+        if (hookData.column.index === 2 && hookData.section === "body") {
+          const val = hookData.cell.text[0];
+          if (val === "Good")     hookData.cell.styles.textColor = [22, 163, 74];
+          if (val === "Low")      hookData.cell.styles.textColor = [217, 119, 6];
+          if (val === "Critical") hookData.cell.styles.textColor = [220, 38, 38];
+        }
+      },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Marks ────────────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Marks", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Course", "IA1 /30", "IA2 /30", "Final /100", "Effective", "Grade", "GP"]],
+      body: marks.map((m: any) => {
+        const eff   = getEffective(m);
+        const grade = getCourseGrade(m);
+        const gp    = eff ? toGradePoint(eff.mark, eff.scheme) : "—";
+        const effVal = eff
+          ? (eff.mark % 1 === 0 ? String(eff.mark) : eff.mark.toFixed(1))
+          : "—";
+        return [
+          m.course,
+          m.IA1   ?? "—",
+          m.IA2   ?? "—",
+          m.FINAL ?? "—",
+          effVal,
+          grade,
+          String(gp),
+        ];
+      }),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Assignments ──────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Assignments", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Title", "Course", "Faculty", "Status"]],
+      body: assignments.map((a: any) => [a.title, a.course, a.faculty, a.status]),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+    y = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Leaves ───────────────────────────────────────────────────────
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(30, 41, 59);
+    doc.text("Leaves", 14, y);
+    y += 6;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["From", "To", "Reason", "Status"]],
+      body: leaves.map((l: any) => [l.from, l.to, l.reason, l.status]),
+      theme: "striped",
+      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: "bold", fontSize: 10 },
+      bodyStyles: { fontSize: 10 },
+      margin: { left: 14, right: 14 },
+    });
+
+    // ── Footer ───────────────────────────────────────────────────────
+    const pageCount = (doc.internal as any).getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(9);
+      doc.setTextColor(148, 163, 184);
+      doc.setFont("helvetica", "normal");
+      doc.text(
+        `Generated on ${new Date().toLocaleDateString()}  ·  Page ${i} of ${pageCount}`,
+        pageW / 2, doc.internal.pageSize.getHeight() - 8,
+        { align: "center" }
+      );
+    }
+
+    doc.save(`${student.name.replace(/\s+/g, "_")}_Report.pdf`);
+  };
+
   if (!data) {
     return (
-        <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:400 }}>
-          <div style={{ textAlign:"center", color:"#94a3b8" }}>
-            <div style={{
-              width:36, height:36, borderRadius:"50%",
-              border:"3px solid #e2e8f0", borderTopColor:BLUE,
-              animation:"sd-spin 0.8s linear infinite", margin:"0 auto 12px",
-            }}/>
-            <p style={{ fontSize:14 }}>Loading student data…</p>
-          </div>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:400 }}>
+        <div style={{ textAlign:"center", color:"#94a3b8" }}>
+          <div style={{
+            width:36, height:36, borderRadius:"50%",
+            border:"3px solid #e2e8f0", borderTopColor:BLUE,
+            animation:"sd-spin 0.8s linear infinite", margin:"0 auto 12px",
+          }}/>
+          <p style={{ fontSize:14 }}>Loading student data…</p>
         </div>
+      </div>
     );
   }
 
@@ -203,14 +352,29 @@ const Layout =
 
       <div style={{ maxWidth:1100, margin:"0 auto", padding:"0 2px" }}>
 
-        {/* Back */}
-        <button className="sd-back" onClick={() => navigate(-1)} style={{
-          display:"flex", alignItems:"center", gap:6, marginBottom:20,
-          fontSize:13, color:"#64748b", background:"none", border:"none",
-          cursor:"pointer", padding:0,
-        }}>
-          <ArrowLeft size={15}/> Back 
-        </button>
+        {/* Back + Download ───────────────────────────────────────── */}
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:20 }}>
+          <button className="sd-back" onClick={() => navigate(-1)} style={{
+            display:"flex", alignItems:"center", gap:6,
+            fontSize:13, color:"#64748b", background:"none", border:"none",
+            cursor:"pointer", padding:0,
+          }}>
+            <ArrowLeft size={15}/> Back
+          </button>
+
+          <button onClick={downloadPDF} style={{
+            display:"flex", alignItems:"center", gap:6,
+            fontSize:13, fontWeight:500, color:BLUE,
+            background:BLUE_LIGHT, border:`1px solid ${BLUE}30`,
+            borderRadius:8, padding:"7px 14px", cursor:"pointer",
+            transition:"background 0.15s",
+          }}
+            onMouseEnter={e => (e.currentTarget.style.background = "#dbeafe")}
+            onMouseLeave={e => (e.currentTarget.style.background = BLUE_LIGHT)}
+          >
+            <Download size={14}/> Download PDF
+          </button>
+        </div>
 
         {/* Profile card */}
         <div className="sd-fadeup" style={{
@@ -362,10 +526,7 @@ const Layout =
         {/* ══ MARKS ════════════════════════════════════════════════════ */}
         {activeTab === "marks" && (
           <div className="sd-fadeup">
-            {/* Scheme legend */}
-            <div style={{
-              display:"flex", gap:16, marginBottom:14, flexWrap:"wrap",
-            }}>
+            <div style={{ display:"flex", gap:16, marginBottom:14, flexWrap:"wrap" }}>
               {[
                 { label:"IA1 / IA2", note:"out of 30 each", color:"#7c3aed" },
                 { label:"Final",     note:"out of 100",      color:"#2563eb" },
@@ -394,24 +555,18 @@ const Layout =
                 const eff   = getEffective(m);
                 const grade = getCourseGrade(m);
                 const gp    = eff ? toGradePoint(eff.mark, eff.scheme) : null;
-
                 const effDisplay = eff
-                  ? <span style={{ fontWeight:700, color:BLUE }}>
-                      {eff.mark % 1 === 0 ? eff.mark : eff.mark.toFixed(1)}
-                    </span>
+                  ? <span style={{ fontWeight:700, color:BLUE }}>{eff.mark % 1 === 0 ? eff.mark : eff.mark.toFixed(1)}</span>
                   : <span style={{ color:"#cbd5e1" }}>—</span>;
-
                 const schemeChip = eff
                   ? <span style={{
                       background: eff.scheme === "final" ? BLUE_LIGHT : "#f5f3ff",
                       color:      eff.scheme === "final" ? BLUE       : "#7c3aed",
-                      fontSize:11, fontWeight:600,
-                      padding:"2px 8px", borderRadius:99,
+                      fontSize:11, fontWeight:600, padding:"2px 8px", borderRadius:99,
                     }}>
                       {eff.scheme === "final" ? "Final /100" : "IA /30"}
                     </span>
                   : <span style={{ color:"#cbd5e1" }}>—</span>;
-
                 return [
                   <span style={{ fontWeight:500, color:"#1e293b" }}>{m.course}</span>,
                   <MarkCell value={m.IA1}   max={30}/>,
@@ -420,15 +575,12 @@ const Layout =
                   effDisplay,
                   schemeChip,
                   <GradeBadge grade={grade}/>,
-                  gp !== null
-                    ? <span style={{ fontWeight:700, color:"#374151" }}>{gp}</span>
-                    : <span style={{ color:"#cbd5e1" }}>—</span>,
+                  gp !== null ? <span style={{ fontWeight:700, color:"#374151" }}>{gp}</span> : <span style={{ color:"#cbd5e1" }}>—</span>,
                 ];
               })}
             />
             <p style={{ fontSize:12, color:"#94a3b8", marginTop:10, paddingLeft:4 }}>
-              Effective = Final if available → avg(IA1+IA2) → IA1 alone.
-              Courses with no marks are excluded from CGPA.
+              Effective = Final if available → avg(IA1+IA2) → IA1 alone. Courses with no marks are excluded from CGPA.
             </p>
           </div>
         )}
@@ -512,7 +664,6 @@ const Mono = ({ children }:any) => (
   <span style={{ fontFamily:"monospace", fontSize:12, color:"#64748b" }}>{children}</span>
 );
 
-/** MarkCell — shows raw mark, colour-coded as % of max */
 const MarkCell = ({ value, max }: { value:any; max:number }) => {
   if (value == null || value === "") return <span style={{ color:"#cbd5e1" }}>—</span>;
   const v   = Number(value);

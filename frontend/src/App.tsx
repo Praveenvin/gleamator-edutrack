@@ -27,10 +27,6 @@ import AdminAssignments from "./pages/admin/AdminAssignments";
 import AdminMaterials from "./pages/admin/AdminMaterials";
 import AdminLeave from "./pages/admin/AdminLeave";
 import AdminSettings from "./pages/admin/AdminSettings";
-import AdminFacultyDetail from "./pages/FacultyDetail";
-import AdminStudentDetail from "./pages/StudentDetail";
-import AdminCourseDetail from "./pages/CourseDetail";
-
 import FacultyDashboard from "./pages/FacultyDashboard";
 import FacultyCourses from "./pages/faculty/FacultyCourses";
 import FacultyAttendance from "./pages/faculty/FacultyAttendance";
@@ -40,6 +36,9 @@ import FacultyMarks from "./pages/faculty/FacultyMarks";
 import FacultyLeave from "./pages/faculty/FacultyLeave";
 import FacultyMessages from "./pages/faculty/FacultyMessages";
 import FacultyProfile from "./pages/faculty/FacultyProfile";
+import FacultyDetail from "./pages/FacultyDetail";
+import CourseDetail from "./pages/CourseDetail";
+import StudentDetail from "./pages/StudentDetail";
 
 const queryClient = new QueryClient();
 
@@ -60,6 +59,14 @@ const App = () => (
             <Route path="/student-dashboard/attendance" element={<ProtectedRoute role="student"><Attendance /></ProtectedRoute>} />
             <Route path="/student-dashboard/timetable" element={<ProtectedRoute role="student"><Timetable /></ProtectedRoute>} />
             <Route path="/student-dashboard/study-material" element={<ProtectedRoute role="student"><StudyMaterial /></ProtectedRoute>} />
+            <Route
+  path="/student-dashboard/course/:id"
+  element={
+    <ProtectedRoute role="student">
+      <CourseDetail />
+    </ProtectedRoute>
+  }
+/>
             <Route path="/student-dashboard/assignments" element={<ProtectedRoute role="student"><Assignments /></ProtectedRoute>} />
             <Route path="/student-dashboard/internal-marks" element={<ProtectedRoute role="student"><InternalMarks /></ProtectedRoute>} />
             <Route path="/student-dashboard/leave-requests" element={<ProtectedRoute role="student"><LeaveRequests /></ProtectedRoute>} />
@@ -73,15 +80,16 @@ const App = () => (
   path="/admin-dashboard/student/:id"
   element={
     <ProtectedRoute role={["admin","faculty"]}>
-      <AdminStudentDetail />
+      <StudentDetail />
     </ProtectedRoute>
   }
 />
+
             <Route
   path="/admin-dashboard/faculty/:id"
   element={
     <ProtectedRoute role={["admin","faculty"]}>
-      <AdminFacultyDetail />
+      <FacultyDetail />
     </ProtectedRoute>
   }
 />
@@ -89,7 +97,7 @@ const App = () => (
   path="/admin-dashboard/course/:id"
   element={
     <ProtectedRoute role={["admin","faculty"]}>
-      <AdminCourseDetail />
+      <CourseDetail />
     </ProtectedRoute>
   }
 />
@@ -119,7 +127,15 @@ const App = () => (
   path="/faculty-dashboard/student/:id"
   element={
     <ProtectedRoute role={["admin","faculty"]}>
-      <AdminStudentDetail />
+      <StudentDetail />
+    </ProtectedRoute>
+  }
+/>
+            <Route
+  path="/faculty-dashboard/course/:id"
+  element={
+    <ProtectedRoute role={["admin","faculty"]}>
+      <CourseDetail />
     </ProtectedRoute>
   }
 />

@@ -528,7 +528,7 @@ const confirmBulkDelete = async ()=>{
               <td className="px-4 py-3 font-medium">
   <span
     onClick={() => navigate(`/admin-dashboard/course/${c.id}`)}
-    className="cursor-pointer hover:underline"
+    className="cursor-pointer text-foreground hover:opacity-70"
   >
     {c.course_name}
   </span>
