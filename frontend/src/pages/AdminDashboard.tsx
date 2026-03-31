@@ -328,9 +328,9 @@ const totalPages = Math.ceil(
 
             <XAxis dataKey="dept" tick={{fontSize:12}}/>
 
-            <YAxis tick={{fontSize:12}} domain={[60,100]}/>
+            <YAxis tick={{fontSize:12}} domain={[0,100]}/>
 
-            <Tooltip/>
+            <Tooltip formatter={(value) => `${value}%`} />
 
             <Bar dataKey="attendance" fill="hsl(217,91%,60%)" radius={[4,4,0,0]}/>
 

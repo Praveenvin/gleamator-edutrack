@@ -26,7 +26,7 @@ const FacultyDashboard = () => {
       <div className="bg-white border border-border rounded-lg px-3 py-2 shadow-md text-xs">
         <p className="font-medium">{data.payload.name}</p>
         <p className="text-muted-foreground">
-          Avg Marks: <span className="text-foreground font-medium">{data.value}</span>
+          Avg Performance: <span className="text-foreground font-medium">{data.value}%</span>
         </p>
       </div>
     )
@@ -202,12 +202,20 @@ Object.keys(courseStudentMap).forEach((cid)=>{
 
     // 🔥 same logic as grading
     if (s.FINAL > 0) {
-      values.push(s.FINAL);
-    } else if (s.IA1 > 0 && s.IA2 > 0) {
-      values.push((s.IA1 + s.IA2) / 2);
-    } else if (s.IA1 > 0) {
-      values.push(s.IA1);
-    }
+  // FINAL is out of 100 → already %
+  values.push(Math.round(s.FINAL));
+} 
+else if (s.IA1 > 0 && s.IA2 > 0) {
+  const ia1Percent = (s.IA1 / 40) * 100;
+  const ia2Percent = (s.IA2 / 40) * 100;
+
+  const avgPercent = (ia1Percent + ia2Percent) / 2;
+  values.push(Math.round(avgPercent));
+} 
+else if (s.IA1 > 0) {
+  const ia1Percent = (s.IA1 / 40) * 100;
+  values.push(Math.round(ia1Percent));
+}
   });
 
   const avg =
@@ -350,7 +358,7 @@ setCourseGraph(
 
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(214,32%,91%)"/>
 
-              <XAxis type="number"/>
+              <XAxis type="number" domain={[0, 100]} />
               <YAxis type="category" dataKey="name" width={160}/>
               <Tooltip content={<BarTooltip />} cursor={{ fill: "rgba(0,0,0,0.04)" }} />
 
@@ -393,7 +401,7 @@ setCourseGraph(
             <thead>
               <tr className="border-b border-border">
                 <th className="text-left py-2">Student</th>
-                <th className="text-left py-2">Avg Marks</th>
+                <th className="text-left py-2">Avg Performance:</th>
               </tr>
             </thead>
             <tbody>

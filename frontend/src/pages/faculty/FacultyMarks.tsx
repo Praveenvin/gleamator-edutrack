@@ -25,7 +25,7 @@ const FacultyMarks = () => {
   const [courses,setCourses] = useState<Course[]>([]);
   const [selectedCourse,setSelectedCourse] = useState<number | null>(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [marks,setMarks] = useState<Record<number,{IA1:number,IA2:number,FINAL:number}>>({});
+  const [marks, setMarks] = useState<Record<number, { IA1: number | null, IA2: number | null, FINAL: number | null }>>({});
   const navigate = useNavigate();
   const [message,setMessage] = useState<string | null>(null);
   const [error,setError] = useState<string | null>(null);
@@ -40,17 +40,17 @@ const FacultyMarks = () => {
   const [uploaded,setUploaded] = useState(false);
 
   // ================= FETCH =================
-  const getGrade = (m: { IA1: number; IA2: number; FINAL: number }) => {
+  const getGrade = (m: { IA1: number | null; IA2: number | null; FINAL: number | null }) => {
   let score = 0;
   let max = 100;
 
-  if (m.FINAL > 0) {
+  if (m.FINAL !== null && m.FINAL > 0) {
     score = m.FINAL;
     max = 100;
-  } else if (m.IA1 > 0 && m.IA2 > 0) {
+  } else if (m.IA1 !== null && m.IA2 !== null && m.IA1 > 0 && m.IA2 > 0) {
     score = (m.IA1 + m.IA2) / 2;
     max = 40;
-  } else if (m.IA1 > 0) {
+  } else if (m.IA1 !== null && m.IA1 > 0) {
     score = m.IA1;
     max = 40;
   } else {
@@ -82,7 +82,7 @@ const FacultyMarks = () => {
 
     const initial:any = {};
     studentsRes.data.forEach((s:Student)=>{
-      initial[s.id] = { IA1:0, IA2:0, FINAL:0 };
+      initial[s.id] = { IA1: null, IA2: null, FINAL: null }; // Changed from 0 to null
     });
 
     marksRes.data.forEach((m:any)=>{
@@ -99,7 +99,7 @@ const FacultyMarks = () => {
 
   // ================= UPDATE =================
 
-  const updateMark = (id:number,type:string,value:number)=>{
+  const updateMark = (id:number, type:string, value:number | null)=>{
     setMarks({
       ...marks,
       [id]:{
@@ -108,7 +108,6 @@ const FacultyMarks = () => {
       }
     });
   };
-
   // ================= SAVE =================
 
   const submitMarks = async () => {
@@ -116,34 +115,32 @@ const FacultyMarks = () => {
     setSaving(true);
 
     for (const studentId in marks) {
-      const m = marks[studentId];
+  const m = marks[studentId];
 
-      // 🔥 ALWAYS SEND (even if 0)
-      await axios.post(MARKS_API, {
-        student: studentId,
-        course: selectedCourse,
-        marks: m.IA1,
-        exam_type: "IA1",
-      });
+  await axios.post(MARKS_API, {
+    student: studentId,
+    course: selectedCourse,
+    marks: m.IA1,   // can be null
+    exam_type: "IA1",
+  });
 
-      await axios.post(MARKS_API, {
-        student: studentId,
-        course: selectedCourse,
-        marks: m.IA2,
-        exam_type: "IA2",
-      });
+  await axios.post(MARKS_API, {
+    student: studentId,
+    course: selectedCourse,
+    marks: m.IA2,
+    exam_type: "IA2",
+  });
 
-      await axios.post(MARKS_API, {
-        student: studentId,
-        course: selectedCourse,
-        marks: m.FINAL,
-        exam_type: "FINAL",
-      });
-    }
+  await axios.post(MARKS_API, {
+    student: studentId,
+    course: selectedCourse,
+    marks: m.FINAL,
+    exam_type: "FINAL",
+  });
+}
 
     setMessage("Marks saved successfully");
 
-    // 🔥 REFRESH FROM BACKEND (IMPORTANT)
     if (selectedCourse) {
       fetchStudentsAndMarks(selectedCourse);
     }
@@ -223,20 +220,26 @@ const FacultyMarks = () => {
 
     if (!student) return;
 
+    // Set to null if empty/undefined, otherwise convert to number
     if (row.IA1 !== undefined && row.IA1 !== "")
       updated[student.id].IA1 = Number(row.IA1);
+    else if (row.IA1 === "")
+      updated[student.id].IA1 = null;
 
     if (row.IA2 !== undefined && row.IA2 !== "")
       updated[student.id].IA2 = Number(row.IA2);
+    else if (row.IA2 === "")
+      updated[student.id].IA2 = null;
 
     if (row.FINAL !== undefined && row.FINAL !== "")
       updated[student.id].FINAL = Number(row.FINAL);
+    else if (row.FINAL === "")
+      updated[student.id].FINAL = null;
   });
 
   setMarks(updated);
   setUploaded(true);
 
-  // 🔥 UX PART
   setMessage("Marks applied successfully");
   setShowUpload(false);
   setFile(null);
@@ -249,10 +252,10 @@ const FacultyMarks = () => {
     let f=false,i2=false,i1=false;
 
     students.forEach(s=>{
-      const m = marks[s.id] || {IA1:0,IA2:0,FINAL:0};
-      if(m.FINAL>0) f=true;
-      if(m.IA2>0) i2=true;
-      if(m.IA1>0) i1=true;
+      const m = marks[s.id] || {IA1:null,IA2:null,FINAL:null};
+      if(m.FINAL !== null && m.FINAL > 0) f=true;
+      if(m.IA2 !== null && m.IA2 > 0) i2=true;
+      if(m.IA1 !== null && m.IA1 > 0) i1=true;
     });
 
     if(f) return "FINAL";
@@ -270,23 +273,23 @@ let topper = { name: "", marks: 0 };
 let maxMarks = phase === "FINAL" ? 100 : 40;
 
 students.forEach((s) => {
-  const m = marks[s.id] || { IA1: 0, IA2: 0, FINAL: 0 };
+  const m = marks[s.id] || { IA1: null, IA2: null, FINAL: null };
 
   let score = 0;
 
   if (phase === "FINAL") {
-    if (m.FINAL > 0) score = m.FINAL;   // ✅ ONLY FINAL
-    else return; // ❌ ignore IA students
+    if (m.FINAL !== null && m.FINAL > 0) score = m.FINAL;
+    else return;
   }
 
   else if (phase === "IA2") {
-    if (m.IA1 > 0 && m.IA2 > 0) {
+    if (m.IA1 !== null && m.IA2 !== null && m.IA1 > 0 && m.IA2 > 0) {
       score = (m.IA1 + m.IA2) / 2;
-    } else return; // ignore incomplete
+    } else return;
   }
 
   else if (phase === "IA1") {
-    if (m.IA1 > 0) score = m.IA1;
+    if (m.IA1 !== null && m.IA1 > 0) score = m.IA1;
     else return;
   }
 
@@ -432,7 +435,7 @@ const pass = evaluated
     {/* BODY */}
     <tbody>
       {students.map((s) => {
-        const m = marks[s.id] || { IA1: 0, IA2: 0, FINAL: 0 };
+        const m = marks[s.id] || { IA1: null, IA2: null, FINAL: null };
 
         return (
           <tr
@@ -454,47 +457,51 @@ const pass = evaluated
 
             {/* MARKS */}
             {["IA1", "IA2", "FINAL"].map((t) => {
+  const value = (m as any)[t];
 
-              const value = (m as any)[t];
+  return (
+    <td key={t} className="px-4 py-3 text-center">
+      {isEditing ? (
+        <input
+          type="number"
+          value={value === null ? "" : value} // Show empty if null
+          min={0}
+          max={t === "FINAL" ? 100 : 40}
+          onChange={(e) => {
+            const inputValue = e.target.value;
+            
+            // If empty, set to null
+            if (inputValue === "" || inputValue === null) {
+              updateMark(s.id, t, null);
+              return;
+            }
 
-              return (
-                <td key={t} className="px-4 py-3 text-center">
+            let val = Number(inputValue);
 
-                  {isEditing ? (
-                    <input
-                      type="number"
-                      value={value}
-                      min={0}
-                      max={t === "FINAL" ? 100 : 40}
-                      onChange={(e) => {
-                        let val = Number(e.target.value);
+            if (val < 0) val = 0;
+            if (t === "FINAL" && val > 100) val = 100;
+            if (t !== "FINAL" && val > 40) val = 40;
 
-                        if (val < 0) val = 0;
-                        if (t === "FINAL" && val > 100) val = 100;
-                        if (t !== "FINAL" && val > 40) val = 40;
+            updateMark(s.id, t, val);
+          }}
 
-                        updateMark(s.id, t, val);
-                      }}
+          style={{
+            WebkitAppearance: "none",
+            MozAppearance: "textfield"
+          }}
 
-                      /* 🔥 Scoped arrow removal */
-                      style={{
-                        WebkitAppearance: "none",
-                        MozAppearance: "textfield"
-                      }}
-
-                      className="w-16 text-center rounded-md border border-border 
-                                 focus:outline-none focus:ring-2 focus:ring-primary/40 
-                                 transition"
-                    />
-                  ) : (
-                    <span className="px-2 py-1 text-sm">
-                      {value}
-                    </span>
-                  )}
-
-                </td>
-              );
-            })}
+          className="w-16 text-center rounded-md border border-border 
+                     focus:outline-none focus:ring-2 focus:ring-primary/40 
+                     transition"
+        />
+      ) : (
+        <span className="px-2 py-1 text-sm">
+          {value === null ? "-" : value} {/* Show dash if null */}
+        </span>
+      )}
+    </td>
+  );
+})}
 
             {/* GRADE */}
 <td className="px-4 py-3 text-center text-xs">

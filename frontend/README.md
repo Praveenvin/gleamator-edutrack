@@ -1,73 +1,90 @@
-# Welcome to your Lovable project
+# Academic Management System
 
-## Project info
+## Overview
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+This project is a role-based academic management system designed to streamline interactions between students, faculty, and administrators. It provides centralized access to academic data such as attendance, courses, assignments, and performance metrics through a structured dashboard interface.
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## Features
 
-**Use Lovable**
+### Student
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+* View attendance (overall and subject-wise)
+* Access course details
+* View internal marks and assignments
+* Submit leave requests
+* Access study materials
+* Messaging and profile management
 
-Changes made via Lovable will be committed automatically to this repo.
+### Faculty
 
-**Use your preferred IDE**
+* Manage courses and student data
+* Mark attendance
+* Upload assignments and study materials
+* Evaluate student performance
+* Handle leave requests
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### Admin
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+* Manage students, faculty, and courses
+* Monitor attendance and academic performance
+* Manage assignments and materials
+* Configure system settings
 
-Follow these steps:
+---
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
+## Key Functionalities
+
+* Role-based authentication and authorization
+* Protected routing
+* Drill-down navigation for detailed views
+* Dynamic dashboards
+* API-based data handling
+
+---
+
+## Tech Stack
+
+Frontend:
+
+* React (TypeScript)
+* Vite
+* Tailwind CSS
+
+Backend:
+
+* Django / FastAPI
+
+Other:
+
+* Axios
+* React Router
+* Recharts
+
+---
+
+## Setup
+
+```bash
 git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
 cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+npm install
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Routing Structure
 
-**Use GitHub Codespaces**
+* Student: /student-dashboard
+* Faculty: /faculty-dashboard
+* Admin: /admin-dashboard
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+---
 
-## What technologies are used for this project?
+## Author
 
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+Praveen V
+Final Year Computer Science Engineering (AI & ML)
+A.M.C Engineering College

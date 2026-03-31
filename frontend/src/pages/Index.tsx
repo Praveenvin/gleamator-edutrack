@@ -169,29 +169,42 @@ const Index = () => {
 
 assignments.forEach((a:any)=>{
 
-  // ✅ use proper course name
   const subject = a.subject || "Unknown";
 
   if(!assignmentStats[subject]){
     assignmentStats[subject] = {
       subject,
-      Submitted:0,
-      Pending:0
+      total: 0,
+      Submitted: 0,
+      Pending: 0
     };
   }
 
+  // ✅ IMPORTANT: count total
+  assignmentStats[subject].total++;
+
   if(a.status === "Submitted"){
-    assignmentStats[subject].Submitted +=1;
+    assignmentStats[subject].Submitted += 1;
   }
 
   if(a.status === "Pending"){
-    assignmentStats[subject].Pending +=1;
+    assignmentStats[subject].Pending += 1;
   }
 
 });
 
-setAssignmentData(Object.values(assignmentStats));
-
+// ✅ CONVERT TO PERCENTAGE HERE
+setAssignmentData(
+  Object.values(assignmentStats).map((a:any)=>({
+    subject: a.subject,
+    Submitted: a.total
+      ? Math.round((a.Submitted / a.total) * 100)
+      : 0,
+    Pending: a.total
+      ? Math.round((a.Pending / a.total) * 100)
+      : 0
+  }))
+);
       /* ---------- MATERIALS & NOTIFICATIONS ---------- */
 
       setMaterials(materialRes.data?.slice(0,3) || []);
@@ -273,7 +286,7 @@ setAssignmentData(Object.values(assignmentStats));
 
               <YAxis domain={[0,100]}/>
 
-              <Tooltip/>
+              <Tooltip formatter={(value) => `${value}%`} />
 
               <Legend/>
 
@@ -316,15 +329,9 @@ setAssignmentData(Object.values(assignmentStats));
   dataKey="subject"
   tickFormatter={shortName}
 />
-    <YAxis allowDecimals={false} />
+    <YAxis domain={[0, 100]} />
 
-    <Tooltip
-  contentStyle={{
-    borderRadius: "10px",
-    border: "none",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.1)"
-  }}
-/>
+    <Tooltip formatter={(value) => `${value}%`} />
 
     <Legend />
 
